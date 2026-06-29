@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"go-admin/internal/common"
 	"go-admin/internal/logger"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ func Logger() gin.HandlerFunc {
 
 		latency := time.Since(start)
 		statusCode := c.Writer.Status()
-		clientIP := c.ClientIP()
+		clientIP := common.NormalizeIP(c.ClientIP())
 		method := c.Request.Method
 
 		if query != "" {

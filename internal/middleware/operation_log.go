@@ -81,7 +81,7 @@ func OperationLog() gin.HandlerFunc {
 
 		statusCode := c.Writer.Status()
 		method := c.Request.Method
-		clientIP := c.ClientIP()
+		clientIP := common.NormalizeIP(c.ClientIP())
 		userAgent := c.Request.UserAgent()
 
 		operatorID := common.GetCurrentUserID(c)

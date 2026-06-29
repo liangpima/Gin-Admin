@@ -71,7 +71,7 @@ func (ctl *AuthController) Login(c *gin.Context) {
 
 	// 登录限频：同一 IP 5分钟内最多5次失败
 	ctx := context.Background()
-	ip := c.ClientIP()
+	ip := common.NormalizeIP(c.ClientIP())
 	rateKey := fmt.Sprintf("login:rate:%s", ip)
 	attempts, _ := cache.Incr(ctx, rateKey)
 	if attempts == 1 {
@@ -165,7 +165,7 @@ func (ctl *AuthController) saveLoginLog(c *gin.Context, username string, status 
 	log := &model.SysLoginLog{
 		TenantID:  common.GetTenantID(c),
 		Username:  username,
-		IP:        c.ClientIP(),
+		IP:        common.NormalizeIP(c.ClientIP()),
 		Browser:   browser,
 		OS:        os,
 		Status:    status,
