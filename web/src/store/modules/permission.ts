@@ -8,24 +8,33 @@ const viewModules = import.meta.glob('@/views/**/*.vue')
 interface PermissionState {
   routes: RouteRecordRaw[]
   addRoutes: RouteRecordRaw[]
+  routesLoaded: boolean
 }
 
 export const usePermissionStore = defineStore('permission', {
   state: (): PermissionState => ({
     routes: [],
     addRoutes: [],
+    routesLoaded: false,
   }),
 
   actions: {
     setRoutes(routes: RouteRecordRaw[]) {
       this.addRoutes = routes
       this.routes = constantRoutes.concat(routes)
+      this.routesLoaded = true
     },
 
     generateRoutes(menus: any[]) {
       const accessedRoutes = filterAsyncRoutes(menus)
       this.setRoutes(accessedRoutes)
       return accessedRoutes
+    },
+
+    resetRoutes() {
+      this.routes = []
+      this.addRoutes = []
+      this.routesLoaded = false
     },
   },
 })

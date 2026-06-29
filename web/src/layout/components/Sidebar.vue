@@ -66,6 +66,7 @@ const sidebarClass = computed(() => ({
 }))
 
 const menuRoutes = computed(() => {
+  if (!permissionStore.routesLoaded) return []
   return permissionStore.routes.filter((r: any) => !r.meta?.hidden)
 })
 

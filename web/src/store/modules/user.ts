@@ -51,8 +51,7 @@ export const useUserStore = defineStore('user', {
       removeToken()
 
       const permissionStore = usePermissionStore()
-      permissionStore.routes = []
-      permissionStore.addRoutes = []
+      permissionStore.resetRoutes()
       router.getRoutes().forEach((route) => {
         if (route.name && !['Login', 'Dashboard', 'NotFound'].includes(route.name as string)) {
           router.removeRoute(route.name)

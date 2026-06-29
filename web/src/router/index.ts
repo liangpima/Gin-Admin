@@ -44,8 +44,7 @@ router.beforeEach(async (to, _from, next) => {
         } catch {
           userStore.logout()
           const permStore = usePermissionStore()
-          permStore.routes = []
-          permStore.addRoutes = []
+          permStore.resetRoutes()
           next('/login')
           NProgress.done()
         }
