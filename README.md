@@ -504,6 +504,14 @@ go test ./internal/module/member/... -v
 swag init -g cmd/server/main.go -o docs
 ```
 
+## 打赏
+
+如果这个项目对你有帮助，欢迎请作者喝杯咖啡~
+
+| 微信 | 支付宝 |
+|:---:|:---:|
+| <img src="docs/images/weixin.jpg" width="200"> | <img src="docs/images/zhifubao.jpg" width="200"> |
+
 ## 许可证
 
 MIT License
