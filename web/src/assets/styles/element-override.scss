@@ -1,0 +1,211 @@
+// Element Plus Theme Override
+// Maps Element Plus CSS variables to our design tokens
+
+:root {
+  // Primary
+  --el-color-primary: var(--color-primary);
+  --el-color-primary-light-3: var(--color-primary-300);
+  --el-color-primary-light-5: var(--color-primary-200);
+  --el-color-primary-light-7: var(--color-primary-100);
+  --el-color-primary-light-8: var(--color-primary-50);
+  --el-color-primary-light-9: var(--color-primary-50);
+  --el-color-primary-dark-2: var(--color-primary-700);
+
+  // Success
+  --el-color-success: var(--color-success);
+  --el-color-success-light-3: var(--color-success-300);
+  --el-color-success-light-5: var(--color-success-200);
+  --el-color-success-light-7: var(--color-success-100);
+  --el-color-success-light-9: var(--color-success-50);
+  --el-color-success-dark-2: var(--color-success-700);
+
+  // Warning
+  --el-color-warning: var(--color-warning);
+  --el-color-warning-light-3: var(--color-warning-300);
+  --el-color-warning-light-5: var(--color-warning-200);
+  --el-color-warning-light-7: var(--color-warning-100);
+  --el-color-warning-light-9: var(--color-warning-50);
+  --el-color-warning-dark-2: var(--color-warning-700);
+
+  // Danger
+  --el-color-danger: var(--color-danger);
+  --el-color-danger-light-3: var(--color-danger-300);
+  --el-color-danger-light-5: var(--color-danger-200);
+  --el-color-danger-light-7: var(--color-danger-100);
+  --el-color-danger-light-9: var(--color-danger-50);
+  --el-color-danger-dark-2: var(--color-danger-700);
+
+  // Info
+  --el-color-info: var(--color-info);
+  --el-color-info-light-3: var(--color-info-300);
+  --el-color-info-light-5: var(--color-info-200);
+  --el-color-info-light-7: var(--color-info-100);
+  --el-color-info-light-9: var(--color-info-50);
+  --el-color-info-dark-2: var(--color-info-700);
+
+  // Background
+  --el-bg-color: var(--color-bg-card);
+  --el-bg-color-page: var(--color-bg-page);
+  --el-bg-color-overlay: var(--color-bg-card);
+  --el-bg-color-blank: var(--color-bg-card);
+
+  // Text
+  --el-text-color-primary: var(--color-text-primary);
+  --el-text-color-regular: var(--color-text-regular);
+  --el-text-color-secondary: var(--color-text-secondary);
+  --el-text-color-placeholder: var(--color-text-placeholder);
+  --el-text-color-disabled: var(--color-text-disabled);
+
+  // Border
+  --el-border-color: var(--color-border-base);
+  --el-border-color-light: var(--color-border-light);
+  --el-border-color-lighter: var(--color-border-lighter);
+  --el-border-color-extra-light: var(--color-border-extra-light);
+  --el-border-color-hover: var(--color-primary);
+  --el-fill-color: var(--color-bg-hover);
+  --el-fill-color-light: var(--color-bg-hover);
+  --el-fill-color-lighter: var(--color-border-extra-light);
+  --el-fill-color-blank: var(--color-bg-card);
+
+  // Border radius
+  --el-border-radius-base: var(--radius-sm);
+  --el-border-radius-small: var(--radius-xs);
+  --el-border-radius-round: var(--radius-round);
+
+  // Box shadow
+  --el-box-shadow: var(--shadow-md);
+  --el-box-shadow-light: var(--shadow-sm);
+  --el-box-shadow-lighter: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --el-box-shadow-dark: var(--shadow-lg);
+
+  // Mask
+  --el-mask-color: rgba(255, 255, 255, 0.8);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.2);
+
+  // Component specific
+  --el-menu-active-color: var(--color-primary);
+  --el-menu-hover-bg-color: var(--sidebar-menu-hover);
+
+  // Dialog
+  --el-dialog-width: 50%;
+  --el-dialog-margin-top: 15vh;
+  --el-dialog-border-radius: var(--radius-lg);
+  --el-dialog-padding-primary: var(--spacing-lg);
+
+  // Card
+  --el-card-border-radius: var(--card-radius);
+  --el-card-border-color: var(--color-border-lighter);
+  --el-card-padding: var(--spacing-lg);
+
+  // Table
+  --el-table-border-color: var(--color-border-lighter);
+  --el-table-header-bg-color: var(--color-bg-table-header);
+  --el-table-header-text-color: var(--color-text-primary);
+  --el-table-row-hover-bg-color: var(--color-bg-hover);
+  --el-table-current-row-bg-color: var(--color-bg-active);
+  --el-table-text-color: var(--color-text-regular);
+
+  // Input
+  --el-input-border-radius: var(--radius-sm);
+
+  // Button
+  --el-button-border-radius: var(--radius-sm);
+  --el-button-small-border-radius: var(--radius-xs);
+}
+
+// Global Element Plus style enhancements
+.el-card {
+  border-radius: var(--card-radius) !important;
+  border-color: var(--color-border-lighter) !important;
+  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+
+  &:hover {
+    box-shadow: var(--shadow-md);
+  }
+}
+
+.el-button {
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast);
+
+  &--primary.is-large {
+    box-shadow: 0 2px 6px rgba(64, 158, 255, 0.3);
+
+    &:hover {
+      box-shadow: 0 4px 10px rgba(64, 158, 255, 0.4);
+      transform: translateY(-1px);
+    }
+  }
+
+  // Link buttons: subtle hover
+  &.is-link {
+    &:hover,
+    &:focus {
+      opacity: 0.85;
+    }
+  }
+
+  &--primary.is-link {
+    color: var(--color-primary) !important;
+    &:hover,
+    &:focus {
+      color: var(--color-primary-700) !important;
+      background-color: transparent;
+      border-color: transparent;
+      opacity: 1;
+    }
+  }
+
+  &--danger.is-link {
+    color: var(--color-danger) !important;
+    &:hover,
+    &:focus {
+      color: var(--color-danger-700) !important;
+      background-color: transparent;
+      border-color: transparent;
+      opacity: 1;
+    }
+  }
+}
+
+.el-dialog {
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
+}
+
+.el-table {
+  --el-table-border-color: var(--color-border-lighter);
+
+  th.el-table__cell {
+    background-color: var(--color-bg-table-header) !important;
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.el-pagination {
+  --el-pagination-font-size: var(--font-size-sm);
+}
+
+.el-form-item__label {
+  color: var(--color-text-regular);
+}
+
+// Scrollbar styling
+.el-scrollbar__bar {
+  &.is-horizontal {
+    height: 6px;
+  }
+  &.is-vertical {
+    width: 6px;
+  }
+
+  .el-scrollbar__thumb {
+    background-color: var(--color-border-base);
+    border-radius: var(--radius-round);
+
+    &:hover {
+      background-color: var(--color-text-secondary);
+    }
+  }
+}

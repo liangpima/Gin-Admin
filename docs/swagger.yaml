@@ -1,0 +1,1515 @@
+basePath: /api/v1
+definitions:
+  common.PageData:
+    properties:
+      list: {}
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
+  common.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+  dto.ChangePasswordRequest:
+    properties:
+      newPassword:
+        maxLength: 128
+        minLength: 6
+        type: string
+      oldPassword:
+        type: string
+    required:
+    - newPassword
+    - oldPassword
+    type: object
+  dto.CreateMemberLevelRequest:
+    properties:
+      discount:
+        maximum: 10
+        minimum: 1
+        type: number
+      icon:
+        maxLength: 256
+        type: string
+      minPoints:
+        type: integer
+      name:
+        maxLength: 64
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - name
+    type: object
+  dto.CreateMemberRequest:
+    properties:
+      avatar:
+        maxLength: 512
+        type: string
+      birthday:
+        type: string
+      gender:
+        enum:
+        - 0
+        - 1
+        - 2
+        type: integer
+      levelId:
+        type: integer
+      nickname:
+        maxLength: 64
+        type: string
+      phone:
+        type: string
+      remark:
+        maxLength: 500
+        type: string
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+      tagIds:
+        items:
+          type: integer
+        type: array
+      username:
+        maxLength: 64
+        type: string
+    required:
+    - phone
+    type: object
+  dto.CreateMemberTagRequest:
+    properties:
+      color:
+        maxLength: 20
+        type: string
+      name:
+        maxLength: 64
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - name
+    type: object
+  dto.CreateUserRequest:
+    properties:
+      deptId:
+        type: integer
+      email:
+        type: string
+      nickname:
+        maxLength: 64
+        type: string
+      password:
+        maxLength: 128
+        minLength: 6
+        type: string
+      phone:
+        type: string
+      postIds:
+        items:
+          type: integer
+        type: array
+      remark:
+        maxLength: 500
+        type: string
+      roleIds:
+        items:
+          type: integer
+        type: array
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+      username:
+        maxLength: 64
+        minLength: 2
+        type: string
+    required:
+    - deptId
+    - password
+    - username
+    type: object
+  dto.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  dto.RefreshTokenRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  dto.ResetPasswordRequest:
+    properties:
+      id:
+        type: integer
+      password:
+        maxLength: 128
+        minLength: 6
+        type: string
+    required:
+    - id
+    - password
+    type: object
+  dto.StatusRequest:
+    properties:
+      id:
+        type: integer
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - id
+    - status
+    type: object
+  dto.UpdateMemberLevelRequest:
+    properties:
+      discount:
+        maximum: 10
+        minimum: 1
+        type: number
+      icon:
+        maxLength: 256
+        type: string
+      id:
+        type: integer
+      minPoints:
+        type: integer
+      name:
+        maxLength: 64
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - id
+    - name
+    type: object
+  dto.UpdateMemberRequest:
+    properties:
+      avatar:
+        maxLength: 512
+        type: string
+      birthday:
+        type: string
+      gender:
+        enum:
+        - 0
+        - 1
+        - 2
+        type: integer
+      id:
+        type: integer
+      levelId:
+        type: integer
+      nickname:
+        maxLength: 64
+        type: string
+      phone:
+        type: string
+      remark:
+        maxLength: 500
+        type: string
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+      tagIds:
+        items:
+          type: integer
+        type: array
+      username:
+        maxLength: 64
+        type: string
+    required:
+    - id
+    type: object
+  dto.UpdateMemberStatusRequest:
+    properties:
+      id:
+        type: integer
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - id
+    type: object
+  dto.UpdateMemberTagRequest:
+    properties:
+      color:
+        maxLength: 20
+        type: string
+      id:
+        type: integer
+      name:
+        maxLength: 64
+        type: string
+      sort:
+        type: integer
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - id
+    - name
+    type: object
+  dto.UpdateMemberTagsRequest:
+    properties:
+      id:
+        type: integer
+      tagIds:
+        items:
+          type: integer
+        type: array
+    required:
+    - id
+    type: object
+  dto.UpdateUserDeptRequest:
+    properties:
+      deptId:
+        type: integer
+      id:
+        type: integer
+    required:
+    - deptId
+    - id
+    type: object
+  dto.UpdateUserRequest:
+    properties:
+      deptId:
+        type: integer
+      email:
+        type: string
+      id:
+        type: integer
+      nickname:
+        maxLength: 64
+        type: string
+      phone:
+        type: string
+      postIds:
+        items:
+          type: integer
+        type: array
+      remark:
+        maxLength: 500
+        type: string
+      roleIds:
+        items:
+          type: integer
+        type: array
+      status:
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - id
+    type: object
+  dto.UpdateUserRolesRequest:
+    properties:
+      id:
+        type: integer
+      roleIds:
+        items:
+          type: integer
+        type: array
+    required:
+    - id
+    type: object
+  model.DashboardStats:
+    properties:
+      configCount:
+        type: integer
+      deptCount:
+        type: integer
+      logCount:
+        type: integer
+      menuCount:
+        type: integer
+      postCount:
+        type: integer
+      roleCount:
+        type: integer
+      userCount:
+        type: integer
+    type: object
+  vo.LoginResponse:
+    properties:
+      accessToken:
+        type: string
+      expiresIn:
+        type: integer
+      refreshToken:
+        type: string
+      tokenType:
+        type: string
+    type: object
+  vo.MenuInfo:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/vo.MenuInfo'
+        type: array
+      component:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      isCache:
+        type: integer
+      name:
+        type: string
+      parentId:
+        type: integer
+      path:
+        type: string
+      redirect:
+        type: string
+      sort:
+        type: integer
+      title:
+        type: string
+      type:
+        type: integer
+      visible:
+        type: integer
+    type: object
+  vo.RoleInfo:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  vo.UserInfoResponse:
+    properties:
+      avatar:
+        type: string
+      buttons:
+        items:
+          type: string
+        type: array
+      email:
+        type: string
+      id:
+        type: integer
+      menus:
+        items:
+          $ref: '#/definitions/vo.MenuInfo'
+        type: array
+      nickname:
+        type: string
+      phone:
+        type: string
+      roles:
+        items:
+          $ref: '#/definitions/vo.RoleInfo'
+        type: array
+      username:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Gin-Admin 后台管理系统 API 文档
+  title: Gin-Admin API
+  version: 1.0.0
+paths:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 登录参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/vo.LoginResponse'
+              type: object
+      summary: 用户登录
+      tags:
+      - 认证
+  /api/v1/auth/logout:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 退出登录
+      tags:
+      - 认证
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: RefreshToken
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/vo.LoginResponse'
+              type: object
+      summary: 刷新Token
+      tags:
+      - 认证
+  /api/v1/auth/userInfo:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/vo.UserInfoResponse'
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户信息
+      tags:
+      - 认证
+  /api/v1/dashboard/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.DashboardStats'
+              type: object
+      summary: 获取统计数据
+      tags:
+      - 仪表盘
+  /api/v1/pay/notify/alipay:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
+      - description: 支付宝回调数据
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: success or fail
+          schema:
+            type: string
+      summary: 支付宝回调
+      tags:
+      - 支付回调
+  /api/v1/pay/notify/wechat:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 微信回调数据
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+      summary: 微信支付回调
+      tags:
+      - 支付回调
+  /api/v1/system/user:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 创建用户
+      tags:
+      - 管理员
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 更新用户
+      tags:
+      - 管理员
+  /api/v1/system/user/{id}:
+    delete:
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 删除用户
+      tags:
+      - 管理员
+    get:
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 获取用户详情
+      tags:
+      - 管理员
+  /api/v1/system/user/changePwd:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 密码信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 修改密码
+      tags:
+      - 管理员
+  /api/v1/system/user/dept:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 部门
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserDeptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 修改用户部门
+      tags:
+      - 管理员
+  /api/v1/system/user/list:
+    get:
+      parameters:
+      - description: 用户名
+        in: query
+        name: username
+        type: string
+      - description: 手机号
+        in: query
+        name: phone
+        type: string
+      - description: 状态
+        in: query
+        name: status
+        type: integer
+      - description: 部门ID
+        in: query
+        name: deptId
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 每页条数
+        in: query
+        name: pageSize
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/common.PageData'
+              type: object
+      summary: 用户列表
+      tags:
+      - 管理员
+  /api/v1/system/user/resetPwd:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 新密码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 重置密码
+      tags:
+      - 管理员
+  /api/v1/system/user/roles:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 角色
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserRolesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 修改用户角色
+      tags:
+      - 管理员
+  /api/v1/system/user/status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 状态
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: 修改用户状态
+      tags:
+      - 管理员
+  /member:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 会员信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建会员
+      tags:
+      - 会员管理
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 会员信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新会员
+      tags:
+      - 会员管理
+  /member/{id}:
+    delete:
+      parameters:
+      - description: 会员ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除会员
+      tags:
+      - 会员管理
+    get:
+      parameters:
+      - description: 会员ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 会员详情
+      tags:
+      - 会员管理
+  /member/level:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 等级信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateMemberLevelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建会员等级
+      tags:
+      - 会员等级
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 等级信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateMemberLevelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新会员等级
+      tags:
+      - 会员等级
+  /member/level/{id}:
+    delete:
+      parameters:
+      - description: 等级ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除会员等级
+      tags:
+      - 会员等级
+  /member/level/all:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 全部等级
+      tags:
+      - 会员等级
+  /member/level/list:
+    get:
+      parameters:
+      - description: 等级名称
+        in: query
+        name: name
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 每页条数
+        in: query
+        name: pageSize
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 等级列表
+      tags:
+      - 会员等级
+  /member/list:
+    get:
+      parameters:
+      - description: 手机号
+        in: query
+        name: phone
+        type: string
+      - description: 昵称
+        in: query
+        name: nickname
+        type: string
+      - description: 等级ID
+        in: query
+        name: levelId
+        type: integer
+      - description: 状态
+        in: query
+        name: status
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 每页条数
+        in: query
+        name: pageSize
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 会员列表
+      tags:
+      - 会员管理
+  /member/points/list:
+    get:
+      parameters:
+      - description: 会员ID
+        in: query
+        name: memberId
+        type: integer
+      - description: 类型 1获取 2消费
+        in: query
+        name: type
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 每页条数
+        in: query
+        name: pageSize
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 积分明细列表
+      tags:
+      - 积分明细
+  /member/status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 状态
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateMemberStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 修改会员状态
+      tags:
+      - 会员管理
+  /member/tag:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateMemberTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建会员标签
+      tags:
+      - 会员标签
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateMemberTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新会员标签
+      tags:
+      - 会员标签
+  /member/tag/{id}:
+    delete:
+      parameters:
+      - description: 标签ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除会员标签
+      tags:
+      - 会员标签
+  /member/tag/all:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 全部标签
+      tags:
+      - 会员标签
+  /member/tag/list:
+    get:
+      parameters:
+      - description: 标签名称
+        in: query
+        name: name
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        required: true
+        type: integer
+      - description: 每页条数
+        in: query
+        name: pageSize
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 标签列表
+      tags:
+      - 会员标签
+  /member/tags:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 标签
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateMemberTagsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 修改会员标签
+      tags:
+      - 会员管理
+  /member/visit:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 会员ID
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 最后访问时间
+      tags:
+      - 会员管理
+  /system/file/{id}:
+    delete:
+      parameters:
+      - description: 文件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除文件
+      tags:
+      - 文件
+    get:
+      parameters:
+      - description: 文件ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取文件详情
+      tags:
+      - 文件
+  /system/file/list:
+    get:
+      parameters:
+      - description: 文件名
+        in: query
+        name: name
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 文件列表
+      tags:
+      - 文件
+  /system/file/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: 文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 上传文件
+      tags:
+      - 文件
+  /system/pay/order:
+    get:
+      parameters:
+      - description: 订单号
+        in: query
+        name: orderNo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 查询支付订单
+      tags:
+      - 支付
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 创建订单参数
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建支付订单
+      tags:
+      - 支付
+  /system/pay/order/close:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 关闭订单参数
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 关闭支付订单
+      tags:
+      - 支付
+  /system/pay/order/list:
+    get:
+      parameters:
+      - description: 订单标题
+        in: query
+        name: subject
+        type: string
+      - description: 支付渠道
+        in: query
+        name: channel
+        type: string
+      - description: 订单状态
+        in: query
+        name: status
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 支付订单列表
+      tags:
+      - 支付
+  /system/pay/order/query:
+    get:
+      parameters:
+      - description: 订单号
+        in: query
+        name: orderNo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 查询支付状态
+      tags:
+      - 支付
+  /system/pay/order/refund:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 退款参数
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - BearerAuth: []
+      summary: 申请退款
+      tags:
+      - 支付
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: '输入格式: Bearer {token}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

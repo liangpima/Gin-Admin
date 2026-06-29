@@ -1,0 +1,58 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+server.exe
+
+# Test binary
+*.test
+
+# Output
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Dependencies
+vendor/
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+
+# Uploads
+uploads/
+
+# Build
+dist/
+build/
+
+# Frontend auto-generated
+web/src/auto-imports.d.ts
+web/components.d.ts
+
+# Runtime
+tmp/
+temp/
+*.pid
+*.bak
