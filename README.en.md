@@ -18,28 +18,31 @@ Suitable for CRM, agent management platforms, enterprise internal management sys
 
 | Technology | Version | Description |
 |------------|---------|-------------|
-| Go | 1.25 | Programming Language |
-| Gin | v1.10.0 | Web Framework |
-| GORM | v1.25.12 | ORM Framework |
-| MySQL | 5.7+ | Relational Database |
-| Redis | 3.0+ | Cache / Token Storage |
-| JWT | v5.2.3 | Authentication |
-| Casbin | v2.103.0 | RBAC Authorization |
-| Viper | v1.19.0 | Configuration |
-| Zap | v1.27.0 | Structured Logging |
-| Swagger | v1.6.0 | API Documentation |
+| ![Go](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat&logo=go&logoColor=white) | 1.25 | Programming Language |
+| ![Gin](https://img.shields.io/badge/Gin-v1.10.0-008ECF?style=flat&logo=gin&logoColor=white) | v1.10.0 | Web Framework |
+| ![GORM](https://img.shields.io/badge/GORM-v1.25.12-0092D2?style=flat&logo=database&logoColor=white) | v1.25.12 | ORM Framework |
+| ![MySQL](https://img.shields.io/badge/MySQL-5.7%2B-4479A1?style=flat&logo=mysql&logoColor=white) | 5.7+ | Relational Database |
+| ![Redis](https://img.shields.io/badge/Redis-3.0%2B-DC382D?style=flat&logo=redis&logoColor=white) | 3.0+ | Cache / Token Storage |
+| ![JWT](https://img.shields.io/badge/JWT-v5.2.3-000000?style=flat&logo=json-web-tokens&logoColor=white) | v5.2.3 | Authentication |
+| ![Casbin](https://img.shields.io/badge/Casbin-v2.103.0-3D9B8F?style=flat&logo=casbin&logoColor=white) | v2.103.0 | RBAC Authorization |
+| ![Viper](https://img.shields.io/badge/Viper-v1.19.0-BD3FEB?style=flat&logo=viper.js&logoColor=white) | v1.19.0 | Configuration |
+| ![Zap](https://img.shields.io/badge/Zap-v1.27.0-ECBA52?style=flat&logo=go&logoColor=white) | v1.27.0 | Structured Logging |
+| ![Swagger](https://img.shields.io/badge/Swagger-v1.6.0-85EA2D?style=flat&logo=swagger&logoColor=white) | v1.6.0 | API Documentation |
+| ![OSS](https://img.shields.io/badge/Aliyun_OSS-v3.0.2-FF6A00?style=flat&logo=alibabacloud&logoColor=white) | v3.0.2 | Alibaba Cloud OSS |
+| ![COS](https://img.shields.io/badge/Tencent_COS-v0.7.74-006EFF?style=flat&logo=tencentcloud&logoColor=white) | v0.7.74 | Tencent Cloud COS |
+| ![MinIO](https://img.shields.io/badge/MinIO-v7.2.1-C72C48?style=flat&logo=minio&logoColor=white) | v7.2.1 | S3 Compatible Storage |
 
 ### Frontend
 
 | Technology | Version | Description |
 |------------|---------|-------------|
-| Vue | 3.5.13 | Progressive Framework |
-| Vue Router | 4.5.0 | Routing |
-| Pinia | 2.3.0 | State Management |
-| Element Plus | 2.9.1 | UI Component Library |
-| Axios | 1.7.9 | HTTP Client |
-| Vite | 6.0.5 | Build Tool |
-| TypeScript | 5.7.2 | Type System |
+| ![Vue](https://img.shields.io/badge/Vue-3.5.13-42b883?style=flat&logo=vuedotjs&logoColor=white) | 3.5.13 | Progressive Framework |
+| ![Vue Router](https://img.shields.io/badge/Vue_Router-4.5.0-42b883?style=flat&logo=vuedotjs&logoColor=white) | 4.5.0 | Routing |
+| ![Pinia](https://img.shields.io/badge/Pinia-2.3.0-FCCD2B?style=flat&logo=pinia&logoColor=white) | 2.3.0 | State Management |
+| ![Element Plus](https://img.shields.io/badge/Element_Plus-2.9.1-409EFF?style=flat&logo=element&logoColor=white) | 2.9.1 | UI Component Library |
+| ![Axios](https://img.shields.io/badge/Axios-1.7.9-5A29E4?style=flat&logo=axios&logoColor=white) | 1.7.9 | HTTP Client |
+| ![Vite](https://img.shields.io/badge/Vite-6.0.5-646CFF?style=flat&logo=vite&logoColor=white) | 6.0.5 | Build Tool |
+| ![TypeScript](https://img.shields.io/badge/TypeScript-5.7.2-3178C6?style=flat&logo=typescript&logoColor=white) | 5.7.2 | Type System |
 
 ## Project Structure
 

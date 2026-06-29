@@ -18,31 +18,31 @@
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| Go | 1.25 | 编程语言 |
-| Gin | v1.10.0 | Web 框架 |
-| GORM | v1.25.12 | ORM 框架 |
-| MySQL | 5.7+ | 关系型数据库 |
-| Redis | 3.0+ | 缓存/Token存储 |
-| JWT | v5.2.3 | 认证授权 |
-| Casbin | v2.103.0 | RBAC 权限控制 |
-| Viper | v1.19.0 | 配置管理 |
-| Zap | v1.27.0 | 结构化日志 |
-| Swagger | v1.6.0 | API 文档 |
-| Aliyun OSS | v3.0.2 | 阿里云对象存储 |
-| Tencent COS | v0.7.74 | 腾讯云对象存储 |
-| MinIO | v7.2.1 | S3 兼容存储 |
+| ![Go](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat&logo=go&logoColor=white) | 1.25 | 编程语言 |
+| ![Gin](https://img.shields.io/badge/Gin-v1.10.0-008ECF?style=flat&logo=gin&logoColor=white) | v1.10.0 | Web 框架 |
+| ![GORM](https://img.shields.io/badge/GORM-v1.25.12-0092D2?style=flat&logo=database&logoColor=white) | v1.25.12 | ORM 框架 |
+| ![MySQL](https://img.shields.io/badge/MySQL-5.7%2B-4479A1?style=flat&logo=mysql&logoColor=white) | 5.7+ | 关系型数据库 |
+| ![Redis](https://img.shields.io/badge/Redis-3.0%2B-DC382D?style=flat&logo=redis&logoColor=white) | 3.0+ | 缓存/Token存储 |
+| ![JWT](https://img.shields.io/badge/JWT-v5.2.3-000000?style=flat&logo=json-web-tokens&logoColor=white) | v5.2.3 | 认证授权 |
+| ![Casbin](https://img.shields.io/badge/Casbin-v2.103.0-3D9B8F?style=flat&logo=casbin&logoColor=white) | v2.103.0 | RBAC 权限控制 |
+| ![Viper](https://img.shields.io/badge/Viper-v1.19.0-BD3FEB?style=flat&logo=viper.js&logoColor=white) | v1.19.0 | 配置管理 |
+| ![Zap](https://img.shields.io/badge/Zap-v1.27.0-ECBA52?style=flat&logo=go&logoColor=white) | v1.27.0 | 结构化日志 |
+| ![Swagger](https://img.shields.io/badge/Swagger-v1.6.0-85EA2D?style=flat&logo=swagger&logoColor=white) | v1.6.0 | API 文档 |
+| ![OSS](https://img.shields.io/badge/Aliyun_OSS-v3.0.2-FF6A00?style=flat&logo=alibabacloud&logoColor=white) | v3.0.2 | 阿里云对象存储 |
+| ![COS](https://img.shields.io/badge/Tencent_COS-v0.7.74-006EFF?style=flat&logo=tencentcloud&logoColor=white) | v0.7.74 | 腾讯云对象存储 |
+| ![MinIO](https://img.shields.io/badge/MinIO-v7.2.1-C72C48?style=flat&logo=minio&logoColor=white) | v7.2.1 | S3 兼容存储 |
 
 ### 前端 Frontend
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| Vue | 3.5.13 | 渐进式框架 |
-| Vue Router | 4.5.0 | 路由管理 |
-| Pinia | 2.3.0 | 状态管理 |
-| Element Plus | 2.9.1 | UI 组件库 |
-| Axios | 1.7.9 | HTTP 客户端 |
-| Vite | 6.0.5 | 构建工具 |
-| TypeScript | 5.7.2 | 类型系统 |
+| ![Vue](https://img.shields.io/badge/Vue-3.5.13-42b883?style=flat&logo=vuedotjs&logoColor=white) | 3.5.13 | 渐进式框架 |
+| ![Vue Router](https://img.shields.io/badge/Vue_Router-4.5.0-42b883?style=flat&logo=vuedotjs&logoColor=white) | 4.5.0 | 路由管理 |
+| ![Pinia](https://img.shields.io/badge/Pinia-2.3.0-FCCD2B?style=flat&logo=pinia&logoColor=white) | 2.3.0 | 状态管理 |
+| ![Element Plus](https://img.shields.io/badge/Element_Plus-2.9.1-409EFF?style=flat&logo=element&logoColor=white) | 2.9.1 | UI 组件库 |
+| ![Axios](https://img.shields.io/badge/Axios-1.7.9-5A29E4?style=flat&logo=axios&logoColor=white) | 1.7.9 | HTTP 客户端 |
+| ![Vite](https://img.shields.io/badge/Vite-6.0.5-646CFF?style=flat&logo=vite&logoColor=white) | 6.0.5 | 构建工具 |
+| ![TypeScript](https://img.shields.io/badge/TypeScript-5.7.2-3178C6?style=flat&logo=typescript&logoColor=white) | 5.7.2 | 类型系统 |
 
 ## 项目结构
 
