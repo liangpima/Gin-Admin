@@ -1,12 +1,20 @@
+# Gin-Admin
+
+[中文](README.md) | [English](README.en.md)
+
 # Gin-Admin 后台管理框架
 
 基于 **Go + Gin + GORM + Vue3 + Element Plus** 的中大型业务系统后台管理框架。
 
 适用于活动管理、CRM、Agent管理平台、企业内部管理系统等场景。
 
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Vue](https://img.shields.io/badge/Vue-3.5-42b883?style=flat&logo=vue.js)](https://vuejs.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 ## 技术栈
 
-### 后端
+### 后端 Backend
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
@@ -23,10 +31,8 @@
 | Aliyun OSS | v3.0.2 | 阿里云对象存储 |
 | Tencent COS | v0.7.74 | 腾讯云对象存储 |
 | MinIO | v7.2.1 | S3 兼容存储 |
-| robfig/cron | v3.0.1 | 定时任务 |
-| excelize | v2.9.0 | Excel 导入导出 |
 
-### 前端
+### 前端 Frontend
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
@@ -37,7 +43,6 @@
 | Axios | 1.7.9 | HTTP 客户端 |
 | Vite | 6.0.5 | 构建工具 |
 | TypeScript | 5.7.2 | 类型系统 |
-| WangEditor | 5.1.23 | 富文本编辑器 |
 
 ## 项目结构
 
@@ -51,74 +56,24 @@ go-admin/
 ├── internal/
 │   ├── cache/redis.go              # Redis 封装（可选）
 │   ├── common/                     # 统一响应/错误码/模型/分页
-│   │   ├── response.go             # 统一 Response
-│   │   ├── model.go                # BaseModel / TenantBaseModel
-│   │   ├── tenant.go               # TenantScope 租户过滤
-│   │   ├── errors.go               # 错误码定义
-│   │   ├── constants.go            # 常量
-│   │   ├── context.go              # Context 工具
-│   │   └── pagination.go           # 分页工具
 │   ├── database/mysql.go           # MySQL 连接
 │   ├── logger/zap.go               # Zap 日志
 │   ├── middleware/                  # 7个中间件
-│   │   ├── auth.go                 # JWT 认证
-│   │   ├── casbin.go               # RBAC 鉴权
-│   │   ├── cors.go                 # CORS
-│   │   ├── logger.go               # 请求日志
-│   │   ├── operation_log.go        # 操作审计
-│   │   ├── recovery.go             # Panic 恢复
-│   │   └── tenant.go               # 多租户
 │   └── module/
 │       ├── system/                 # 系统管理模块
 │       ├── payment/                # 支付模块
 │       ├── member/                 # 会员模块
-│       ├── captcha/                # 验证码
-│       └── monitor/                # 监控（占位）
+│       └── captcha/                # 验证码
 ├── pkg/
 │   ├── auth/jwt.go                 # JWT 工具
 │   ├── upload/                     # 多端文件上传
-│   │   ├── upload.go               # 上传入口（自动选择存储方式 + 扩展名校验）
-│   │   ├── local.go                # 本地存储
-│   │   ├── aliyun_oss.go           # 阿里云 OSS
-│   │   ├── tencent_cos.go          # 腾讯云 COS
-│   │   └── minio.go                # MinIO
 │   ├── excel/excel.go              # Excel 导入导出
 │   ├── task/cron.go                # 定时任务调度
-│   └── utils/
-│       ├── hash.go                 # 哈希工具
-│       ├── snowflake.go            # 雪花 ID
-│       └── string.go               # 字符串工具
+│   └── utils/                      # 工具函数
 ├── router/router.go                # 路由注册
-├── sql/
-│   └── init.sql                    # 数据库初始化（建表+种子数据）
-├── docs/                           # Swagger 文档
+├── sql/init.sql                    # 数据库初始化
 ├── web/                            # 前端 (Vue3)
-│   └── src/
-│       ├── api/                    # API 接口（16个）
-│       ├── components/             # 公共组件（10个）
-│       │   ├── ClickCaptcha/       # 点击验证码
-│       │   ├── ImagePicker/        # 图片选择器
-│       │   ├── MobileAction/       # 移动端操作折叠
-│       │   ├── PageHeader/         # 页头
-│       │   ├── Pagination/         # 分页
-│       │   ├── RightPanel/         # 右侧面板
-│       │   ├── SvgIcon/            # SVG 图标
-│       │   ├── TableSkeleton/      # 表格骨架屏
-│       │   ├── Upload/             # 文件上传
-│       │   └── WangEditor/         # 富文本编辑器
-│       ├── hooks/                  # useResponsive, useTheme
-│       ├── layout/                 # 布局组件
-│       ├── router/                 # 路由配置
-│       ├── store/modules/          # app/permission/tagsView/user
-│       ├── types/                  # TypeScript 类型
-│       ├── utils/                  # auth.ts, format.ts, request.ts
-│       └── views/                  # 页面
-├── Makefile                        # 构建脚本
-├── start-all.ps1                   # 一键启动
-├── start-backend.ps1               # 仅启动后端
-├── start-frontend.ps1              # 仅启动前端
 ├── AGENTS.md                       # AI Agent 开发规范
-├── go.mod
 └── README.md
 ```
 
@@ -180,15 +135,6 @@ Repository (数据层)
 | 协议管理 | 用户协议/隐私政策 | `/api/v1/system/agreement/*` |
 | 仪表盘 | 数据统计概览 | `/api/v1/system/dashboard/*` |
 
-### 网站设置
-
-| 模块 | 说明 |
-|------|------|
-| 网站设置 | 网站名称、标题、Logo上传、描述、版权、ICP备案 |
-| 支付设置 | 微信支付/支付宝参数配置、证书上传 |
-| OSS存储设置 | 阿里云OSS/腾讯云COS/MinIO/本地存储切换 |
-| 短信设置 | 短信服务商配置 |
-
 ### 支付管理
 
 | 模块 | 说明 | API |
@@ -197,7 +143,6 @@ Repository (数据层)
 | 订单查询 | 按订单号查询 | `GET /api/v1/system/pay/order` |
 | 关闭订单 | 关闭待支付订单 | `POST /api/v1/system/pay/order/close` |
 | 申请退款 | 微信/支付宝退款 | `POST /api/v1/system/pay/order/refund` |
-| 订单列表 | 分页查询、筛选 | `GET /api/v1/system/pay/order/list` |
 | 支付回调 | 微信/支付宝异步通知 | `POST /api/v1/pay/notify/*` |
 
 ### 会员管理
@@ -226,48 +171,6 @@ Repository (数据层)
 - MinIO（S3 兼容）
 - 启动时自动读取 `sys_config` 表 `oss.*` 配置选择存储方式
 
-## 数据库设计
-
-### 核心表
-
-| 表名 | 说明 |
-|------|------|
-| sys_user | 用户表 |
-| sys_role | 角色表 |
-| sys_menu | 菜单表 |
-| sys_dept | 部门表 |
-| sys_post | 岗位表 |
-| sys_config | 系统配置 |
-| sys_dict_type | 字典类型 |
-| sys_dict_data | 字典数据 |
-| sys_operation_log | 操作日志 |
-| sys_login_log | 登录日志 |
-| sys_file | 文件表 |
-| sys_tenant | 租户表 |
-| sys_user_role | 用户角色关联 |
-| sys_role_menu | 角色菜单关联 |
-| sys_user_post | 用户岗位关联 |
-| sys_agreement | 用户协议 |
-| pay_order | 支付订单 |
-| member | 会员表 |
-| member_level | 会员等级 |
-| member_tag | 会员标签 |
-| member_points_log | 积分日志 |
-
-### ER 关系
-
-```
-sys_user ──< sys_user_role >── sys_role
-sys_role ──< sys_role_menu >── sys_menu
-sys_user ──< sys_user_post >── sys_post
-sys_dept ──< sys_user
-sys_menu ──< sys_menu (自关联)
-sys_dict_type ──< sys_dict_data
-member ──< member_points_log
-member ──< member_tag (多对多)
-pay_order (独立支付订单)
-```
-
 ## 快速开始
 
 ### 环境要求
@@ -280,7 +183,6 @@ pay_order (独立支付订单)
 ### 1. 数据库初始化
 
 ```bash
-# 登录 MySQL 执行初始化脚本（一次执行完成所有建表和数据初始化）
 mysql -u root -p < sql/init.sql
 ```
 
@@ -327,44 +229,19 @@ npm run dev
 
 ## 配置说明
 
-### 应用配置 `config/config.yaml`
+### 环境变量
+
+敏感配置支持环境变量覆盖（优先级高于 config.yaml）：
+
+```bash
+export DB_PASSWORD="your_db_password"
+export JWT_SECRET="your_jwt_secret"
+export REDIS_PASSWORD="your_redis_password"
+```
+
+### CORS 配置
 
 ```yaml
-server:
-  port: 8080
-  mode: debug
-  read_timeout: 60
-  write_timeout: 60
-
-database:
-  host: 127.0.0.1
-  port: 3306
-  username: root
-  password: "your_password" # 生产环境使用 DB_PASSWORD 环境变量
-  dbname: go_admin
-
-redis:
-  addr: 127.0.0.1:6379
-  db: 0
-
-jwt:
-  secret: "your-jwt-secret" # 生产环境使用 JWT_SECRET 环境变量
-  access_expire: 7200      # 2小时
-  refresh_expire: 604800   # 7天
-
-log:
-  level: info
-  max_size: 200
-  max_backups: 7
-
-upload:
-  save_path: "./uploads"
-  max_size: 10
-  allow_exts: ".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx"
-
-casbin:
-  model_path: "config/casbin/model.conf"
-
 cors:
   allow_origins:
     - "http://localhost:3000"
@@ -374,107 +251,28 @@ cors:
   allow_credentials: true
 ```
 
-### 环境变量
-
-敏感配置支持环境变量覆盖（优先级高于 config.yaml）：
-
-```bash
-export DB_PASSWORD="your_db_password"     # 数据库密码
-export JWT_SECRET="your_jwt_secret"       # JWT 签名密钥
-export REDIS_PASSWORD="your_redis_password" # Redis 密码
-```
-
 ### 支付配置（数据库 sys_config 表）
 
-| Key | 说明 | 示例 |
-|-----|------|------|
-| pay.wechat_app_id | 微信AppID | wx1234567890 |
-| pay.wechat_mch_id | 微信商户号 | 1234567890 |
-| pay.wechat_key | 微信API密钥 | 32位密钥 |
-| pay.wechat_serial_no | 微信证书序列号 | 7位以上 |
-| pay.alipay_app_id | 支付宝AppID | 2021001234567890 |
-| pay.alipay_key | 支付宝应用私钥 | RSA私钥 |
-| pay.alipay_public_key | 支付宝公钥 | RSA公钥 |
-| pay.notify_url | 统一回调地址 | https://domain/api/v1/pay/notify/wechat |
-| pay.return_url | 支付宝跳转地址 | https://domain/pay/result |
+| Key | 说明 |
+|-----|------|
+| pay.wechat_app_id | 微信AppID |
+| pay.wechat_mch_id | 微信商户号 |
+| pay.wechat_key | 微信API密钥 |
+| pay.alipay_app_id | 支付宝AppID |
+| pay.alipay_key | 支付宝应用私钥 |
+| pay.alipay_public_key | 支付宝公钥 |
+| pay.notify_url | 统一回调地址 |
 
 ### OSS 配置（数据库 sys_config 表）
 
 | Key | 说明 | 可选值 |
 |-----|------|--------|
 | oss.type | 存储类型 | local / aliyun / tencent / minio |
-| oss.endpoint | Endpoint | aliyun: oss-cn-hangzhou.aliyuncs.com |
-| oss.bucket | Bucket名称 | my-bucket |
+| oss.endpoint | Endpoint | |
+| oss.bucket | Bucket名称 | |
 | oss.access_key | AccessKey | |
 | oss.secret_key | SecretKey | |
-| oss.domain | 自定义域名 | https://cdn.example.com |
-
-## API 接口概览
-
-### 认证
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/auth/login` | 登录 |
-| POST | `/api/v1/auth/refresh` | 刷新Token |
-| POST | `/api/v1/auth/logout` | 退出 |
-| GET | `/api/v1/auth/userInfo` | 获取用户信息 |
-
-### 系统管理
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET/POST/PUT/DELETE | `/api/v1/system/user/*` | 用户 CRUD |
-| GET/POST/PUT/DELETE | `/api/v1/system/role/*` | 角色 CRUD |
-| GET/POST/PUT/DELETE | `/api/v1/system/menu/*` | 菜单 CRUD |
-| GET/POST/PUT/DELETE | `/api/v1/system/dept/*` | 部门 CRUD |
-| GET/POST/PUT/DELETE | `/api/v1/system/post/*` | 岗位 CRUD |
-| GET/POST/PUT/DELETE | `/api/v1/system/config/*` | 配置 CRUD |
-| GET/POST/PUT/DELETE | `/api/v1/system/dict/*` | 字典 CRUD |
-| GET | `/api/v1/system/log/*` | 日志查询 |
-| POST/GET/DELETE | `/api/v1/system/file/*` | 文件管理 |
-
-### 支付
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/system/pay/order` | 创建订单 |
-| GET | `/api/v1/system/pay/order` | 查询订单 |
-| POST | `/api/v1/system/pay/order/close` | 关闭订单 |
-| POST | `/api/v1/system/pay/order/refund` | 申请退款 |
-| GET | `/api/v1/system/pay/order/list` | 订单列表 |
-| GET | `/api/v1/system/pay/order/query` | 查询支付状态 |
-| POST | `/api/v1/pay/notify/wechat` | 微信回调（无需鉴权） |
-| POST | `/api/v1/pay/notify/alipay` | 支付宝回调（无需鉴权） |
-
-### 会员
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET/POST/PUT/DELETE | `/api/v1/member/*` | 会员 CRUD |
-| GET/POST/PUT/DELETE | `/api/v1/member/level/*` | 等级管理 |
-| GET/POST/PUT/DELETE | `/api/v1/member/tag/*` | 标签管理 |
-| GET | `/api/v1/member/points/*` | 积分日志 |
-
-### 其他
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/captcha/*` | 验证码 |
-| GET | `/api/v1/site/info` | 网站信息（公开） |
-| GET | `/health` | 健康检查 |
-| GET | `/swagger/*any` | API 文档 |
-
-## 响应式适配
-
-| 断点 | 宽度 | 效果 |
-|------|------|------|
-| Mobile | <768px | 侧边栏折叠、搜索栏堆叠、弹窗92%、操作列折叠（MobileAction） |
-| Tablet | 768-1024px | 侧边栏折叠、搜索栏2列、弹窗80% |
-| Desktop | >1024px | 完整布局 |
-
-- 使用 `src/hooks/useResponsive.ts` 获取设备状态
-- 搜索栏使用 `el-row` + `el-col` 响应式断点
+| oss.domain | 自定义域名 | |
 
 ## Makefile
 
@@ -491,17 +289,7 @@ make clean         # 清理编译产物
 ## 测试
 
 ```bash
-# 运行全部测试
 go test ./...
-
-# 运行支付模块测试
-go test ./internal/module/payment/... -v
-
-# 运行会员模块测试
-go test ./internal/module/member/... -v
-
-# 生成 Swagger 文档
-swag init -g cmd/server/main.go -o docs
 ```
 
 ## 打赏
@@ -514,4 +302,4 @@ swag init -g cmd/server/main.go -o docs
 
 ## 许可证
 
-MIT License
+[MIT License](LICENSE)
