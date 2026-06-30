@@ -314,3 +314,12 @@ body,
 .el-tabs__item {
   transition: background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow), box-shadow var(--transition-slow);
 }
+
+// WangEditor fullscreen fix
+.w-e-full-screen-container {
+  z-index: 9999 !important;
+}
+
+.w-e-text-container {
+  z-index: 1 !important;
+}

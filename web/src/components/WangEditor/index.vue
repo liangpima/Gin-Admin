@@ -10,7 +10,7 @@
       v-model="valueHtml"
       :defaultConfig="editorConfig"
       :mode="mode"
-      :style="{ height: height + 'px', maxHeight: '400px', overflowY: 'auto' }"
+      :style="{ height: height + 'px', maxHeight: height + 'px', overflowY: 'auto' }"
       @onCreated="handleCreated"
     />
     <ImagePicker v-model:visible="imagePickerVisible" @confirm="handleImagePick" />
@@ -110,6 +110,6 @@ onBeforeUnmount(() => {
   border: 1px solid #ccc;
   border-radius: 4px;
   position: relative;
-  z-index: auto;
+  z-index: 1;
 }
 </style>
