@@ -315,11 +315,38 @@ body,
   transition: background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow), box-shadow var(--transition-slow);
 }
 
-// WangEditor fullscreen fix
+// WangEditor global fixes
 .w-e-full-screen-container {
   z-index: 9999 !important;
 }
 
 .w-e-text-container {
   z-index: 1 !important;
+  overflow: hidden !important;
+
+  .w-e-text {
+    overflow: hidden !important;
+    word-break: break-word;
+
+    img, video, iframe, object, embed {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+  }
+}
+
+// Force all video-related elements to respect container width
+.w-e-video-container,
+.w-e-video-mask,
+.w-e-video-wrapper,
+[data-w-e-type="video"] {
+  max-width: 100% !important;
+  width: 100% !important;
+  display: block !important;
+
+  iframe, video {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9;
+  }
 }

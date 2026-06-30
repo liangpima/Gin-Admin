@@ -109,22 +109,21 @@ onBeforeUnmount(() => {
 .wangeditor-wrapper {
   border: 1px solid #dcdfe6;
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .wangeditor-toolbar {
   border-bottom: 1px solid #dcdfe6;
+  position: relative;
+  z-index: 10;
 }
 
 .wangeditor-editor {
   min-height: 350px;
-}
-
-:deep(.w-e-full-screen-container) {
-  z-index: 9999 !important;
-}
-
-:deep(.w-e-text-container) {
-  z-index: 1 !important;
+  max-height: 450px;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
 }
 </style>
