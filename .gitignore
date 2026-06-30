@@ -4,8 +4,8 @@
 *.dll
 *.so
 *.dylib
-server
-server.exe
+/server
+/server.exe
 nginx.conf
 
 # Test binary
