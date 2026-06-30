@@ -4,11 +4,13 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 Set-Location 'I:\phpstudy_pro\WWW\go'
 
-# Kill old process
-$procs = Get-Process -Name "server.exe" -ErrorAction SilentlyContinue
-if ($procs) {
-    $procs | Stop-Process -Force
-    Write-Host "[stop] server stopped" -ForegroundColor Yellow
+# Kill process on port 8080
+$port = 8080
+$conn = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
+if ($conn) {
+    $pid = $conn.OwningProcess | Select-Object -First 1
+    Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    Write-Host "[stop] killed process on port $port" -ForegroundColor Yellow
     Start-Sleep -Seconds 1
 }
 
@@ -22,7 +24,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Start
-Write-Host "[start] running server..." -ForegroundColor Green
+Write-Host "[start] running server on port $port ..." -ForegroundColor Green
 & .\server.exe
 
 Write-Host ""

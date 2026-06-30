@@ -20,7 +20,6 @@ export function uploadFile(file: File) {
   return request.post<any, Result<{ id: number; name: string; url: string; size: number }>>(
     '/system/file/upload',
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
   )
 }
 

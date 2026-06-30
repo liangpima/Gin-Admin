@@ -237,9 +237,11 @@ CREATE TABLE IF NOT EXISTS `sys_file` (
   `mime_type` varchar(128) DEFAULT '' COMMENT 'MIME类型',
   `storage_type` tinyint DEFAULT 0 COMMENT '存储类型 0本地 1OSS',
   `create_by` bigint unsigned DEFAULT 0 COMMENT '创建者',
+  `update_by` bigint unsigned DEFAULT 0 COMMENT '更新者',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted_at` datetime DEFAULT NULL COMMENT '删除时间',
+  `remark` varchar(500) DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
   KEY `idx_tenant_id` (`tenant_id`),
   KEY `idx_deleted_at` (`deleted_at`)

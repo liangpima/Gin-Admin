@@ -188,5 +188,8 @@ func Setup(mode string) *gin.Engine {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
+	// 静态文件服务 - 上传文件
+	r.Static("/uploads", "uploads")
+
 	return r
 }

@@ -210,6 +210,11 @@ async function handleDelete(row: any) {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 16px;
   min-height: 200px;
+
+  .el-empty {
+    grid-column: 1 / -1;
+    padding: 60px 0;
+  }
 }
 
 .gallery-item {

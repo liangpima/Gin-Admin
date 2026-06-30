@@ -243,6 +243,11 @@ watch(visible, (val) => {
     max-height: 450px;
     overflow-y: auto;
     align-content: start;
+
+    .el-empty {
+      grid-column: 1 / -1;
+      padding: 40px 0;
+    }
   }
 
   &__item {
