@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS `sys_post` (
 CREATE TABLE IF NOT EXISTS `sys_config` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(128) NOT NULL COMMENT '参数名称',
-  `config_key` varchar(200) NOT NULL COMMENT '参数键名',
+  `config_key` varchar(191) NOT NULL COMMENT '参数键名',
   `value` text COMMENT '参数键值',
   `type` tinyint DEFAULT 1 COMMENT '系统内置 0是 1否',
   `create_by` bigint unsigned DEFAULT 0 COMMENT '创建者',
