@@ -23,9 +23,12 @@ var up uploader
 
 // allowedExts 上传文件扩展名白名单
 var allowedExts = map[string]bool{
-	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true,
+	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true, ".svg": true, ".webp": true,
+	".mp4": true, ".mov": true, ".avi": true, ".mkv": true, ".webm": true,
+	".mp3": true, ".wav": true, ".flac": true, ".aac": true,
 	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
-	".ppt": true, ".pptx": true, ".zip": true, ".rar": true,
+	".ppt": true, ".pptx": true, ".zip": true, ".rar": true, ".7z": true,
+	".txt": true, ".csv": true, ".json": true,
 }
 
 // dangerousExts 危险文件扩展名（双重校验）
