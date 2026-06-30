@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS `sys_post` (
 CREATE TABLE IF NOT EXISTS `sys_config` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(128) NOT NULL COMMENT '参数名称',
-  `key` varchar(200) NOT NULL COMMENT '参数键名',
+  `config_key` varchar(200) NOT NULL COMMENT '参数键名',
   `value` text COMMENT '参数键值',
   `type` tinyint DEFAULT 1 COMMENT '系统内置 0是 1否',
   `create_by` bigint unsigned DEFAULT 0 COMMENT '创建者',
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS `sys_config` (
   `deleted_at` datetime DEFAULT NULL COMMENT '删除时间',
   `remark` varchar(500) DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_key` (`key`),
+  UNIQUE KEY `uk_config_key` (`config_key`),
   KEY `idx_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';
 
@@ -509,7 +509,7 @@ INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
 (1, 100), (1, 101), (1, 102), (1, 200), (1, 201), (1, 202);
 
 -- 系统配置（站点设置、支付、OSS、短信）
-INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `type`, `create_by`, `update_by`, `created_at`, `updated_at`) VALUES
+INSERT IGNORE INTO `sys_config` (`name`, `config_key`, `value`, `type`, `create_by`, `update_by`, `created_at`, `updated_at`) VALUES
 ('网站名称', 'site.name', '', 1, 1, 1, NOW(), NOW()),
 ('网站标题', 'site.title', '', 1, 1, 1, NOW(), NOW()),
 ('Logo', 'site.logo', '', 1, 1, 1, NOW(), NOW()),

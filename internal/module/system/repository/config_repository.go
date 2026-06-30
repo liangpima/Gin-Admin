@@ -38,7 +38,7 @@ func (r *configRepository) FindByID(id uint) (*model.SysConfig, error) {
 
 func (r *configRepository) FindByKey(key string) (*model.SysConfig, error) {
 	var config model.SysConfig
-	err := r.db.Where("`key` = ?", key).First(&config).Error
+	err := r.db.Where("config_key = ?", key).First(&config).Error
 	return &config, err
 }
 
@@ -61,7 +61,7 @@ func (r *configRepository) FindList(name string, page, pageSize int) ([]model.Sy
 }
 
 func (r *configRepository) Update(config *model.SysConfig) error {
-	return r.db.Model(config).Select("Name", "Key", "Value", "Type", "Remark", "UpdateBy").Updates(config).Error
+	return r.db.Model(config).Select("Name", "ConfigKey", "Value", "Type", "Remark", "UpdateBy").Updates(config).Error
 }
 
 func (r *configRepository) Delete(id uint) error {
@@ -70,13 +70,13 @@ func (r *configRepository) Delete(id uint) error {
 
 func (r *configRepository) FindByKeyPrefix(prefix string) ([]model.SysConfig, error) {
 	var configs []model.SysConfig
-	err := r.db.Where("`key` LIKE ?", prefix+"%").Order("id ASC").Find(&configs).Error
+	err := r.db.Where("config_key LIKE ?", prefix+"%").Order("id ASC").Find(&configs).Error
 	return configs, err
 }
 
 func (r *configRepository) UpsertByKey(config *model.SysConfig) error {
 	var existing model.SysConfig
-	err := r.db.Where("`key` = ?", config.Key).First(&existing).Error
+	err := r.db.Where("config_key = ?", config.ConfigKey).First(&existing).Error
 	if err == gorm.ErrRecordNotFound {
 		return r.db.Create(config).Error
 	}

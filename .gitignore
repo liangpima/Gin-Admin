@@ -6,6 +6,7 @@
 *.dylib
 server
 server.exe
+nginx.conf
 
 # Test binary
 *.test

@@ -159,10 +159,10 @@ func (s *PaymentService) FindList(tenantID uint, subject string, status int8, ch
 
 func loadPayConfig() map[string]string {
 	var configs []struct {
-		Key   string
+		Key   string `gorm:"column:config_key"`
 		Value string
 	}
-	database.DB.Raw("SELECT `key`, `value` FROM sys_config WHERE `key` LIKE 'pay.%'").Scan(&configs)
+	database.DB.Raw("SELECT `config_key`, `value` FROM sys_config WHERE `config_key` LIKE 'pay.%'").Scan(&configs)
 
 	cfgMap := make(map[string]string)
 	for _, c := range configs {

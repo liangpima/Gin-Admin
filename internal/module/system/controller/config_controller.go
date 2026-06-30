@@ -99,9 +99,9 @@ func (ctl *ConfigController) SiteInfo(c *gin.Context) {
 	for _, item := range list {
 		switch cfg := item.(type) {
 		case model.SysConfig:
-			result[cfg.Key] = cfg.Value
+			result[cfg.ConfigKey] = cfg.Value
 		case *model.SysConfig:
-			result[cfg.Key] = cfg.Value
+			result[cfg.ConfigKey] = cfg.Value
 		}
 	}
 	common.Success(c, result)

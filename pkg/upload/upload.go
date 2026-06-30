@@ -76,11 +76,11 @@ func Init() {
 
 func loadOSSConfig() OSSConfig {
 	var configs []model.SysConfig
-	database.DB.Where("`key` LIKE ?", "oss.%").Find(&configs)
+	database.DB.Where("config_key LIKE ?", "oss.%").Find(&configs)
 
 	cfgMap := make(map[string]string)
 	for _, c := range configs {
-		key := c.Key
+		key := c.ConfigKey
 		if len(key) > 4 && key[:4] == "oss." {
 			cfgMap[key[4:]] = c.Value
 		}

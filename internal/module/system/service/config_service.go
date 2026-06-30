@@ -42,10 +42,10 @@ func (s *configService) Create(name, key, value string, typ int8, operatorID uin
 			CreateBy: operatorID,
 			UpdateBy: operatorID,
 		},
-		Name:  name,
-		Key:   key,
-		Value: value,
-		Type:  typ,
+		Name:      name,
+		ConfigKey: key,
+		Value:     value,
+		Type:      typ,
 	}
 
 	return s.configRepo.Create(config)
@@ -61,7 +61,7 @@ func (s *configService) Update(id uint, name, key, value string, typ int8, opera
 	}
 
 	config.Name = name
-	config.Key = key
+	config.ConfigKey = key
 	config.Value = value
 	config.Type = typ
 	config.UpdateBy = operatorID
@@ -111,9 +111,9 @@ func (s *configService) BatchSave(prefix string, items []ConfigItem, operatorID 
 			BaseModel: common.BaseModel{
 				UpdateBy: operatorID,
 			},
-			Key:   prefix + item.Key,
-			Value: item.Value,
-			Type:  1,
+			ConfigKey: prefix + item.Key,
+			Value:     item.Value,
+			Type:      1,
 		}
 		if err := s.configRepo.UpsertByKey(config); err != nil {
 			return err
