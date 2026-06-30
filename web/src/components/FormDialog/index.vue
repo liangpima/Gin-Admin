@@ -78,6 +78,8 @@ defineEmits<{
 
   .el-dialog__body {
     padding: 24px;
+    max-height: calc(80vh - 160px);
+    overflow-y: auto;
   }
 
   .el-dialog__footer {

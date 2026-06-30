@@ -10,7 +10,7 @@
       v-model="valueHtml"
       :defaultConfig="editorConfig"
       :mode="mode"
-      style="height: 400px; overflow-y: hidden"
+      :style="{ height: height + 'px', maxHeight: '400px', overflowY: 'auto' }"
       @onCreated="handleCreated"
     />
     <ImagePicker v-model:visible="imagePickerVisible" @confirm="handleImagePick" />
