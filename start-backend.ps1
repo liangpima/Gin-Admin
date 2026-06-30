@@ -1,21 +1,30 @@
-cd 'I:\phpstudy_pro\WWW\go'
+chcp 65001 > $null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
-# 杀掉旧进程
+Set-Location 'I:\phpstudy_pro\WWW\go'
+
+# Kill old process
 $procs = Get-Process -Name "server.exe" -ErrorAction SilentlyContinue
 if ($procs) {
     $procs | Stop-Process -Force
-    Write-Host "[stop] 已停止旧进程" -ForegroundColor Yellow
+    Write-Host "[stop] server stopped" -ForegroundColor Yellow
     Start-Sleep -Seconds 1
 }
 
-# 编译
-Write-Host "[build] 正在编译..." -ForegroundColor Cyan
+# Build
+Write-Host "[build] compiling..." -ForegroundColor Cyan
 & 'C:\Go\bin\go.exe' build -o server.exe ./cmd/server
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[error] 编译失败" -ForegroundColor Red
+    Write-Host "[error] build failed" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
     exit 1
 }
 
-# 启动
-Write-Host "[start] 启动后端服务..." -ForegroundColor Green
+# Start
+Write-Host "[start] running server..." -ForegroundColor Green
 & .\server.exe
+
+Write-Host ""
+Write-Host "[exit] server stopped" -ForegroundColor Yellow
+Read-Host "Press Enter to exit"
