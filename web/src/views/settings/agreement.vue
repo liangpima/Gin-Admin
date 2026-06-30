@@ -249,3 +249,31 @@ onMounted(() => {
   }
 }
 </style>
+
+<style lang="scss">
+// 非 scoped - 强制约束编辑器内视频宽度
+.form-dialog .w-e-text-container {
+  overflow: hidden !important;
+
+  .w-e-text {
+    overflow: hidden !important;
+    max-width: 100% !important;
+    width: 100% !important;
+
+    > * {
+      max-width: 100% !important;
+    }
+  }
+
+  .w-e-text video,
+  .w-e-text iframe,
+  .w-e-text [data-w-e-type="video"],
+  .w-e-text .w-e-video-container,
+  .w-e-text .w-e-video-mask,
+  .w-e-text .w-e-video-wrapper {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+}
+</style>
