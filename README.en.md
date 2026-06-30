@@ -168,6 +168,7 @@ Auth:   Auth → CasbinAuth → OperationLog (protected routes only)
 - Tencent Cloud COS
 - MinIO (S3 compatible)
 - Auto-select via `sys_config` table `oss.*` keys on startup
+- Supported formats: images (jpg/png/gif/bmp/svg/webp), video (mp4/mov/avi), audio (mp3/wav), documents (pdf/doc/xls/ppt), archives (zip/rar/7z)
 
 ## Quick Start
 

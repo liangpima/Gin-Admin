@@ -170,6 +170,7 @@ Repository (数据层)
 - 腾讯云 COS
 - MinIO（S3 兼容）
 - 启动时自动读取 `sys_config` 表 `oss.*` 配置选择存储方式
+- 支持格式：图片（jpg/png/gif/bmp/svg/webp）、视频（mp4/mov/avi）、音频（mp3/wav）、文档（pdf/doc/xls/ppt）、压缩包（zip/rar/7z）
 
 ## 快速开始
 

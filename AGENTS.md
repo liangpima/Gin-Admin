@@ -56,10 +56,15 @@ go-admin/
 ├── pkg/
 │   ├── auth/jwt.go                 # JWT 工具
 │   ├── upload/                     # 多端文件上传（本地/OSS/COS/MinIO）
+│   │   ├── upload.go               # 上传入口（自动选择存储方式 + 扩展名校验）
+│   │   ├── local.go                # 本地存储
+│   │   ├── aliyun_oss.go           # 阿里云 OSS
+│   │   ├── tencent_cos.go          # 腾讯云 COS
+│   │   └── minio.go                # MinIO
 │   ├── excel/excel.go              # Excel 导入导出
-│   ├── task/cron.go                # 定时任务
+│   ├── task/cron.go                # 定时任务调度
 │   └── utils/                      # Hash/Snowflake/字符串工具
-├── router/router.go               # 路由注册
+├── router/router.go               # 路由注册（含 /uploads 静态服务）
 ├── sql/                            # 数据库脚本
 ├── docs/                           # Swagger 文档
 ├── web/                            # 前端 (Vue3)
@@ -238,7 +243,7 @@ internal/module/<模块名>/
 web/src/
 ├── api/<模块名>.ts      # API 接口定义（与后端路由一一对应）
 ├── views/<模块名>/      # 页面组件（支持响应式）
-├── components/          # 公共组件（10个：ClickCaptcha, ImagePicker, MobileAction, PageHeader, Pagination, RightPanel, SvgIcon, TableSkeleton, Upload, WangEditor）
+├── components/          # 公共组件（11个：ClickCaptcha, FormDialog, ImagePicker, MobileAction, PageHeader, Pagination, RightPanel, SvgIcon, TableSkeleton, Upload, WangEditor）
 ├── hooks/               # useResponsive, useTheme
 ├── store/modules/       # app/permission/tagsView/user
 ├── utils/               # auth.ts, format.ts, request.ts
@@ -324,9 +329,10 @@ make swagger                   # 生成文档
 make deps                      # 整理依赖
 
 # 一键启动（Windows）
-.\start-all.ps1                # 同时启动前后端
-.\start-backend.ps1            # 仅启动后端
-.\start-frontend.ps1           # 仅启动前端
+.\run.bat                     # 杀旧进程 + 编译 + 启动后端
+.\start-all.ps1               # 同时启动前后端
+.\start-backend.ps1           # 仅启动后端（不杀旧进程）
+.\start-frontend.ps1          # 仅启动前端
 ```
 
 ## 安全规范
@@ -347,7 +353,19 @@ make deps                      # 整理依赖
 
 ### 文件上传
 
-- 扩展名白名单校验（jpg/png/gif/pdf/doc/xls/ppt/zip 等）
+- 扩展名白名单校验（jpg/png/gif/bmp/svg/webp/mp4/mov/mp3/pdf/doc/xls/ppt/zip 等）
+- 危险扩展名拦截（php/exe/sh/bat/js/vbs 等）
+- 文件大小限制：上传 10MB，证书 2MB
+
+### CORS 配置
+
+- 生产环境必须在 `config.yaml` 的 `cors.allow_origins` 配置白名单
+- 开发环境（mode: debug）允许所有来源
+- `AllowCredentials: true` 必须配合明确的 Origin 白名单
+
+### 文件上传
+
+- 扩展名白名单校验（jpg/png/gif/bmp/svg/webp/mp4/mov/mp3/pdf/doc/xls/ppt/zip 等）
 - 危险扩展名拦截（php/exe/sh/bat/js/vbs 等）
 - 文件大小限制：上传 10MB，证书 2MB
 
