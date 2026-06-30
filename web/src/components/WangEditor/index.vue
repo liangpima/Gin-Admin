@@ -4,13 +4,13 @@
       :editor="editorRef"
       :defaultConfig="toolbarConfig"
       :mode="mode"
-      style="border-bottom: 1px solid #ccc"
+      class="wangeditor-toolbar"
     />
     <Editor
       v-model="valueHtml"
       :defaultConfig="editorConfig"
       :mode="mode"
-      :style="{ height: height + 'px', maxHeight: height + 'px', overflowY: 'auto' }"
+      class="wangeditor-editor"
       @onCreated="handleCreated"
     />
     <ImagePicker v-model:visible="imagePickerVisible" @confirm="handleImagePick" />
@@ -32,7 +32,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   modelValue: '',
   mode: 'default',
-  height: 400,
+  height: 350,
 })
 
 const emit = defineEmits<{
@@ -107,9 +107,24 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .wangeditor-wrapper {
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  position: relative;
-  z-index: 1;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.wangeditor-toolbar {
+  border-bottom: 1px solid #dcdfe6;
+}
+
+.wangeditor-editor {
+  min-height: 350px;
+}
+
+:deep(.w-e-full-screen-container) {
+  z-index: 9999 !important;
+}
+
+:deep(.w-e-text-container) {
+  z-index: 1 !important;
 }
 </style>

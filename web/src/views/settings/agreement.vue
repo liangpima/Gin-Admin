@@ -98,7 +98,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="内容" prop="content">
-          <WangEditor v-model="form.content" />
+          <WangEditor v-model="form.content" :height="350" />
         </el-form-item>
       </el-form>
     </FormDialog>

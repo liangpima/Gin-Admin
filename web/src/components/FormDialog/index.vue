@@ -5,14 +5,13 @@
     :width="width"
     :top="top"
     destroy-on-close
+    append-to-body
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
     @close="$emit('update:modelValue', false)"
     class="form-dialog"
   >
-    <div class="form-dialog__body">
-      <slot></slot>
-    </div>
+    <slot></slot>
     <template #footer>
       <div class="form-dialog__footer">
         <el-button @click="$emit('update:modelValue', false)" :disabled="loading">{{ cancelText }}</el-button>
@@ -77,7 +76,7 @@ defineEmits<{
 
   .el-dialog__body {
     padding: 24px;
-    max-height: calc(80vh - 160px);
+    max-height: calc(90vh - 160px);
     overflow-y: auto;
   }
 
@@ -88,31 +87,29 @@ defineEmits<{
   }
 }
 
-.form-dialog__body {
-  :deep(.el-form-item) {
-    margin-bottom: 20px;
+.form-dialog .el-form-item {
+  margin-bottom: 20px;
 
-    &:last-child {
-      margin-bottom: 0;
-    }
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.form-dialog .el-form-item__label {
+  font-weight: 500;
+}
+
+.form-dialog .el-input__wrapper,
+.form-dialog .el-textarea__inner {
+  border-radius: 8px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 0 0 1px var(--el-color-primary-light-5) inset;
   }
 
-  :deep(.el-form-item__label) {
-    font-weight: 500;
-  }
-
-  :deep(.el-input__wrapper),
-  :deep(.el-textarea__inner) {
-    border-radius: 8px;
-    transition: all 0.2s ease;
-
-    &:hover {
-      box-shadow: 0 0 0 1px var(--el-color-primary-light-5) inset;
-    }
-
-    &.is-focus {
-      box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px rgba(64, 158, 255, 0.1);
-    }
+  &.is-focus {
+    box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px rgba(64, 158, 255, 0.1);
   }
 }
 
