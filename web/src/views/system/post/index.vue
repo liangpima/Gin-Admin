@@ -29,7 +29,7 @@
       <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total" layout="total, prev, pager, next" style="margin-top: 16px; justify-content: flex-end" @current-change="loadData" />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" destroy-on-close>
+    <FormDialog v-model="dialogVisible" :title="dialogTitle" :loading="submitLoading" @submit="handleSubmit">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item label="岗位编码" prop="code"><el-input v-model="form.code" placeholder="请输入岗位编码" /></el-form-item>
         <el-form-item label="岗位名称" prop="name"><el-input v-model="form.name" placeholder="请输入岗位名称" /></el-form-item>
@@ -38,11 +38,7 @@
           <el-radio-group v-model="form.status"><el-radio :value="1">正常</el-radio><el-radio :value="0">停用</el-radio></el-radio-group>
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
   </div>
 </template>
 
@@ -51,6 +47,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { getPostList, createPost, updatePost, deletePost } from '@/api/post'
 import { formatDateTime } from '@/utils/format'
+import FormDialog from '@/components/FormDialog/index.vue'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -99,18 +96,10 @@ async function handleSubmit() {
 }
 
 async function handleDelete(row: any) {
-  await ElMessageBox.confirm('确认删除？', '提示', { type: 'warning' })
+  await ElMessageBox.confirm('确定删除该岗位？', '提示', { type: 'warning' })
   await deletePost(row.id)
   ElMessage.success('删除成功'); loadData()
 }
 
-onMounted(() => { loadData() })
+onMounted(() => loadData())
 </script>
-
-<style lang="scss" scoped>
-.table-card {
-  :deep(.el-card__header) {
-    border-bottom-color: var(--color-border-lighter);
-  }
-}
-</style>

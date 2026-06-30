@@ -78,7 +78,7 @@
       />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px" destroy-on-close top="5vh">
+    <FormDialog v-model="dialogVisible" :title="dialogTitle" width="800px" top="5vh" :loading="submitLoading" @submit="handleSubmit">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item label="标题" prop="title">
           <el-input v-model="form.title" placeholder="请输入标题" />
@@ -101,11 +101,7 @@
           <WangEditor v-model="form.content" />
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
   </div>
 </template>
 
@@ -114,6 +110,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { getAgreementList, createAgreement, updateAgreement, deleteAgreement } from '@/api/agreement'
 import WangEditor from '@/components/WangEditor/index.vue'
+import FormDialog from '@/components/FormDialog/index.vue'
 import { formatDateTime } from '@/utils/format'
 
 const typeOptions = [

@@ -30,7 +30,7 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" destroy-on-close>
+    <FormDialog v-model="dialogVisible" :title="dialogTitle" :loading="submitLoading" @submit="handleSubmit">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item label="上级部门">
           <el-tree-select v-model="form.parentId" :data="deptOptions" :props="{ label: 'name', value: 'id' } as any" placeholder="请选择上级部门" check-strictly clearable />
@@ -57,11 +57,7 @@
           </el-radio-group>
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
   </div>
 </template>
 
@@ -69,6 +65,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { getDeptTree, createDept, updateDept, deleteDept } from '@/api/dept'
+import FormDialog from '@/components/FormDialog/index.vue'
 
 const loading = ref(false)
 const submitLoading = ref(false)

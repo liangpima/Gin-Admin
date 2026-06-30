@@ -118,7 +118,7 @@
       />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" destroy-on-close>
+    <FormDialog v-model="dialogVisible" :title="dialogTitle" :loading="submitLoading" @submit="handleSubmit">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item v-if="form.id && form.wechatOpenid" label="OpenID">
           <el-text type="info">{{ form.wechatOpenid }}</el-text>
@@ -175,11 +175,7 @@
           <el-text type="info">{{ formatDateTime(form.lastVisitTime) }}</el-text>
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
 
     <ImagePicker v-model:visible="avatarPickerVisible" @confirm="handleAvatarPick" />
   </div>
@@ -191,6 +187,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getMemberList, createMember, updateMember, deleteMember, updateMemberStatus, updateMemberTags, getAllMemberLevels, getAllMemberTags } from '@/api/member'
 import ImagePicker from '@/components/ImagePicker/index.vue'
+import FormDialog from '@/components/FormDialog/index.vue'
 import { formatDateTime } from '@/utils/format'
 
 const loading = ref(false)

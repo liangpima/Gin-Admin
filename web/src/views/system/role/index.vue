@@ -66,7 +66,7 @@
       />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" destroy-on-close>
+    <FormDialog v-model="dialogVisible" :title="dialogTitle" :loading="submitLoading" @submit="handleSubmit">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item label="角色名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入角色名称" />
@@ -87,13 +87,9 @@
           <el-input v-model="form.remark" type="textarea" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
 
-    <el-dialog v-model="permDialogVisible" title="分配权限" width="600px" destroy-on-close>
+    <FormDialog v-model="permDialogVisible" title="分配权限" :loading="permLoading" @submit="handlePermSubmit">
       <el-tree
         ref="menuTreeRef"
         :data="menuTree"
@@ -102,11 +98,7 @@
         node-key="id"
         :default-checked-keys="checkedMenuIds"
       />
-      <template #footer>
-        <el-button @click="permDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handlePermSubmit" :loading="permLoading">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
   </div>
 </template>
 
@@ -114,6 +106,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { getRoleList, createRole, updateRole, deleteRole } from '@/api/role'
+import FormDialog from '@/components/FormDialog/index.vue'
 import { formatDateTime } from '@/utils/format'
 import { getMenuTree } from '@/api/menu'
 

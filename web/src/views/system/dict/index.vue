@@ -54,28 +54,20 @@
       </el-col>
     </el-row>
 
-    <el-dialog v-model="typeDialogVisible" title="新增字典类型" width="600px" destroy-on-close>
+    <FormDialog v-model="typeDialogVisible" title="新增字典类型" @submit="handleTypeSubmit">
       <el-form ref="typeFormRef" :model="typeForm" :rules="typeFormRules" label-width="80px">
         <el-form-item label="字典名称" prop="name"><el-input v-model="typeForm.name" placeholder="请输入字典名称" /></el-form-item>
         <el-form-item label="字典类型" prop="type"><el-input v-model="typeForm.type" placeholder="请输入字典类型" /></el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="typeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleTypeSubmit">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
 
-    <el-dialog v-model="dataDialogVisible" title="新增字典数据" width="600px" destroy-on-close>
+    <FormDialog v-model="dataDialogVisible" title="新增字典数据" @submit="handleDataSubmit">
       <el-form ref="dataFormRef" :model="dataForm" :rules="dataFormRules" label-width="80px">
         <el-form-item label="字典标签" prop="label"><el-input v-model="dataForm.label" placeholder="请输入字典标签" /></el-form-item>
         <el-form-item label="字典键值" prop="value"><el-input v-model="dataForm.value" placeholder="请输入字典键值" /></el-form-item>
         <el-form-item label="排序"><el-input-number v-model="dataForm.sort" :min="0" /></el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="dataDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleDataSubmit">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
   </div>
 </template>
 
@@ -83,6 +75,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { getDictTypeList, createDictType, deleteDictType, getDictDataList, createDictData, deleteDictData } from '@/api/dict'
+import FormDialog from '@/components/FormDialog/index.vue'
 
 const typeLoading = ref(false)
 const dataLoading = ref(false)

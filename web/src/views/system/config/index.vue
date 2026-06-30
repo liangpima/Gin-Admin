@@ -29,7 +29,7 @@
       <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total" layout="total, prev, pager, next" style="margin-top: 16px; justify-content: flex-end" @current-change="loadData" />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" destroy-on-close>
+    <FormDialog v-model="dialogVisible" :title="dialogTitle" :loading="submitLoading" @submit="handleSubmit">
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="80px">
         <el-form-item label="参数名称" prop="name"><el-input v-model="form.name" placeholder="请输入参数名称" /></el-form-item>
         <el-form-item label="参数键名" prop="key"><el-input v-model="form.key" :disabled="!!form.id" placeholder="请输入参数键名" /></el-form-item>
@@ -38,11 +38,7 @@
           <el-radio-group v-model="form.type"><el-radio :value="0">是</el-radio><el-radio :value="1">否</el-radio></el-radio-group>
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
-      </template>
-    </el-dialog>
+    </FormDialog>
   </div>
 </template>
 
@@ -50,6 +46,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { getConfigList, createConfig, updateConfig, deleteConfig } from '@/api/config'
+import FormDialog from '@/components/FormDialog/index.vue'
 import { formatDateTime } from '@/utils/format'
 
 const loading = ref(false)
