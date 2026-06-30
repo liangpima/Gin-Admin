@@ -44,7 +44,9 @@ const valueHtml = ref(props.modelValue)
 const imagePickerVisible = ref(false)
 const videoPickerVisible = ref(false)
 
-const toolbarConfig: Partial<IToolbarConfig> = {}
+const toolbarConfig: Partial<IToolbarConfig> = {
+  excludeKeys: ['fullScreen'],
+}
 
 const insertFnRef = ref<((url: string, alt?: string, href?: string) => void) | null>(null)
 
@@ -125,5 +127,18 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   position: relative;
   z-index: 1;
+
+  :deep(video) {
+    max-width: 100%;
+    max-height: 300px;
+  }
+
+  :deep(.w-e-text-container) {
+    overflow: hidden;
+  }
+
+  :deep(iframe) {
+    max-width: 100%;
+  }
 }
 </style>
