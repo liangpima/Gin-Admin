@@ -12,6 +12,17 @@ Suitable for CRM, agent management platforms, enterprise internal management sys
 [![Vue](https://img.shields.io/badge/Vue-3.5-42b883?style=flat&logo=vue.js)](https://vuejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+## Features
+
+- **Complete RBAC Permission System** - User → Role → Menu/Button permissions with multi-tenant support
+- **Multi-Payment Integration** - WeChat Pay (JSAPI/Native/Refund) + Alipay (H5/Page/Refund)
+- **Multi-Storage Solutions** - Local / Alibaba Cloud OSS / Tencent Cloud COS / MinIO
+- **Member System** - Member management, level system, tag system, points log
+- **Responsive Frontend** - Desktop + Mobile adaptive layout
+- **Dark Mode** - One-click switch between light/dark themes
+- **Click Captcha** - Brute-force login protection
+- **Operation Logs** - Complete operation audit trail
+
 ## Tech Stack
 
 ### Backend
@@ -49,35 +60,111 @@ Suitable for CRM, agent management platforms, enterprise internal management sys
 ```
 go-admin/
 ├── cmd/server/main.go              # Entry point
-├── config/                         # Configuration
-│   ├── config.yaml
-│   ├── config.go
-│   └── casbin/model.conf
+├── config/
+│   ├── config.yaml                 # Application config
+│   ├── config.go                   # Config loader
+│   └── casbin/model.conf           # RBAC model
 ├── internal/
 │   ├── cache/redis.go              # Redis (optional)
 │   ├── common/                     # Response / Errors / Models / Pagination
 │   ├── database/mysql.go           # MySQL connection
 │   ├── logger/zap.go               # Zap logging
 │   ├── middleware/                  # 7 middlewares
+│   │   ├── auth.go                 # JWT authentication
+│   │   ├── casbin.go               # RBAC authorization
+│   │   ├── cors.go                 # CORS handling
+│   │   ├── operation_log.go        # Operation logging
+│   │   ├── recovery.go             # Panic recovery
+│   │   ├── logger.go               # Request logging
+│   │   └── tenant.go               # Multi-tenant
 │   └── module/
 │       ├── system/                 # System management
+│       │   ├── controller/
+│       │   ├── service/
+│       │   ├── repository/
+│       │   ├── model/
+│       │   ├── dto/
+│       │   └── vo/
 │       ├── payment/                # Payment module
+│       │   ├── controller/
+│       │   ├── service/
+│       │   ├── repository/
+│       │   └── model/
 │       ├── member/                 # Member module
-│       └── captcha/                # Captcha
+│       │   ├── controller/
+│       │   ├── service/
+│       │   ├── repository/
+│       │   └── model/
+│       └── captcha/                # Captcha (no Repository)
 ├── pkg/
 │   ├── auth/jwt.go                 # JWT utilities
 │   ├── upload/                     # Multi-provider file upload
+│   │   ├── upload.go               # Upload entry (auto-select storage)
+│   │   ├── local.go                # Local storage
+│   │   ├── aliyun_oss.go           # Alibaba Cloud OSS
+│   │   ├── tencent_cos.go          # Tencent Cloud COS
+│   │   └── minio.go                # MinIO
 │   ├── excel/excel.go              # Excel import/export
 │   ├── task/cron.go                # Cron job scheduler
 │   └── utils/                      # Utilities
 ├── router/router.go                # Route registration
 ├── sql/init.sql                    # Database initialization
-├── web/                            # Frontend (Vue3)
+├── docs/                           # Swagger documentation
+├── web/                            # Frontend (Vue3 + Element Plus)
+│   └── src/
+│       ├── api/                    # API definitions (16 modules)
+│       ├── components/             # Shared components (11)
+│       │   ├── ClickCaptcha/       # Click captcha
+│       │   ├── FormDialog/         # Form dialog
+│       │   ├── ImagePicker/        # Image picker
+│       │   ├── MobileAction/       # Mobile action buttons
+│       │   ├── PageHeader/         # Page header
+│       │   ├── Pagination/         # Pagination
+│       │   ├── RightPanel/         # Right panel
+│       │   ├── SvgIcon/            # SVG icon
+│       │   ├── TableSkeleton/      # Table skeleton
+│       │   ├── Upload/             # File upload
+│       │   └── WangEditor/         # Rich text editor
+│       ├── hooks/                  # Composables
+│       │   ├── useResponsive.ts    # Responsive breakpoints
+│       │   └── useTheme.ts         # Theme switching
+│       ├── layout/                 # Layout components
+│       │   ├── index.vue           # Main layout
+│       │   └── components/
+│       │       ├── Sidebar.vue     # Sidebar
+│       │       ├── Navbar.vue      # Top navbar
+│       │       ├── TagsView.vue    # Tab navigation
+│       │       ├── AppMain.vue     # Main content
+│       │       └── Breadcrumb.vue  # Breadcrumb
+│       ├── router/                 # Router config (dynamic menus)
+│       ├── store/modules/          # Pinia stores
+│       │   ├── app.ts              # App state
+│       │   ├── user.ts             # User state
+│       │   ├── permission.ts       # Permission state
+│       │   └── tagsView.ts         # Tags view state
+│       ├── utils/                  # Utilities
+│       │   ├── auth.ts             # Token management
+│       │   ├── request.ts          # Axios wrapper
+│       │   └── format.ts           # Formatting utils
+│       └── views/                  # Page views
+│           ├── login/              # Login page
+│           ├── dashboard/          # Dashboard
+│           ├── error/              # Error pages
+│           ├── system/             # System management
+│           ├── settings/           # Settings
+│           ├── member/             # Member pages
+│           └── payment/            # Payment pages
 ├── AGENTS.md                       # AI Agent dev spec
-└── README.md
+├── Makefile                        # Build scripts
+├── start-all.ps1                   # One-click start (Windows)
+├── start-backend.ps1               # Start backend
+├── start-frontend.ps1              # Start frontend
+└── run.bat                         # Backend run script
 ```
 
 ## Architecture
+
+### Backend Three-Layer Architecture
 
 ```
 Controller (Interface Layer)
@@ -100,6 +187,17 @@ Repository (Data Layer)
 ```
 Global: Recovery → Logger → Cors → Tenant
 Auth:   Auth → CasbinAuth → OperationLog (protected routes only)
+```
+
+### Frontend Architecture
+
+```
+Vue3 + Element Plus + Pinia + Vue Router
+
+API Layer: Axios interceptor + JWT token auto-injection
+Router Layer: Dynamic routing (backend menu driven) + Frontend route guards
+State Layer: Pinia (app/user/permission/tagsView)
+View Layer: Component-based development + Responsive layout
 ```
 
 ### Security Features
@@ -143,6 +241,19 @@ Auth:   Auth → CasbinAuth → OperationLog (protected routes only)
 | Refund | WeChat / Alipay refund | `POST /api/v1/system/pay/order/refund` |
 | Callback | Async notification | `POST /api/v1/pay/notify/*` |
 
+**WeChat Pay Support**:
+- JSAPI Payment (Official Account / Mini Program)
+- Native Payment (QR Code)
+- Refund (Partial / Full)
+- Order Query
+
+**Alipay Support**:
+- H5 Payment (Mobile Web)
+- App Payment
+- Page Payment (Desktop Web)
+- Refund
+- Order Query
+
 ### Member Management
 
 | Module | Description | API |
@@ -169,6 +280,16 @@ Auth:   Auth → CasbinAuth → OperationLog (protected routes only)
 - MinIO (S3 compatible)
 - Auto-select via `sys_config` table `oss.*` keys on startup
 - Supported formats: images (jpg/png/gif/bmp/svg/webp), video (mp4/mov/avi), audio (mp3/wav), documents (pdf/doc/xls/ppt), archives (zip/rar/7z)
+
+### Frontend Features
+
+- **Responsive Layout** - Desktop / Tablet / Mobile adaptive
+- **Dark Mode** - One-click light/dark theme switching
+- **Dynamic Menu** - Backend menu driven, multi-level directory support
+- **Tab Navigation** - Multi-tab quick switching
+- **Rich Text Editor** - WangEditor integration
+- **Image Picker** - Select from uploaded files
+- **Table Skeleton** - Loading state optimization
 
 ## Quick Start
 
@@ -250,23 +371,115 @@ cors:
   allow_credentials: true
 ```
 
-## Makefile
+### Payment Config (sys_config table)
+
+| Key | Description |
+|-----|-------------|
+| pay.wechat_app_id | WeChat AppID |
+| pay.wechat_mch_id | WeChat Merchant ID |
+| pay.wechat_key | WeChat API Key |
+| pay.alipay_app_id | Alipay AppID |
+| pay.alipay_key | Alipay Private Key |
+| pay.alipay_public_key | Alipay Public Key |
+| pay.notify_url | Unified Callback URL |
+
+### OSS Config (sys_config table)
+
+| Key | Description | Values |
+|-----|-------------|--------|
+| oss.type | Storage Type | local / aliyun / tencent / minio |
+| oss.endpoint | Endpoint | |
+| oss.bucket | Bucket Name | |
+| oss.access_key | AccessKey | |
+| oss.secret_key | SecretKey | |
+| oss.domain | Custom Domain | |
+
+## Development Guide
+
+### Backend Development
 
 ```bash
-make build         # Build
-make run           # Run
-make test          # Test
-make lint          # Static analysis (go vet)
-make swagger       # Generate Swagger docs
-make deps          # Tidy dependencies
-make clean         # Clean build artifacts
+# Build
+make build
+
+# Run
+make run
+
+# Test
+make test
+
+# Static analysis
+make lint
+
+# Generate Swagger docs
+make swagger
+
+# Tidy dependencies
+make deps
+
+# Clean build artifacts
+make clean
 ```
+
+### Frontend Development
+
+```bash
+cd web
+
+# Install dependencies
+npm install
+
+# Dev server (hot reload)
+npm run dev
+
+# Build for production
+npm run build
+
+# Type check
+npm run build  # includes vue-tsc type check
+```
+
+### Code Style
+
+- Go code follows `gofmt` standard format
+- Error handling must be explicit, no `_` to ignore critical errors
+- All public functions must have comments (Swagger format)
+- DTO uses `binding` tag for parameter validation
+- Model uses `gorm` tag for database fields
+- JSON fields use camelCase naming
+- Frontend API files correspond one-to-one with backend routes
+- Frontend components prefer Element Plus built-in components
 
 ## Testing
 
 ```bash
+# Backend tests
 go test ./...
+
+# Module tests
+go test ./internal/module/payment/... -v
+
+# Frontend build test
+cd web && npm run build
 ```
+
+## FAQ
+
+### Q: Backend starts with "connection refused" error
+
+A: Ensure MySQL and Redis services are running, and check the connection config in `config/config.yaml`.
+
+### Q: Frontend shows blank page
+
+A: Check if the backend is running (frontend accesses `/api` via proxy), and check the browser console for errors.
+
+### Q: File upload fails
+
+A: Check the OSS config in `sys_config` table, ensure `oss.type` is correctly set.
+
+### Q: Payment callback not received
+
+A: Ensure the callback URL `pay.notify_url` is publicly accessible and configured in WeChat/Alipay backend.
 
 ## Support
 

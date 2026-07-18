@@ -12,6 +12,17 @@
 [![Vue](https://img.shields.io/badge/Vue-3.5-42b883?style=flat&logo=vue.js)](https://vuejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+## 功能特性
+
+- **完整的 RBAC 权限体系** - 用户 → 角色 → 菜单/按钮权限，支持多租户
+- **多端支付集成** - 微信支付（JSAPI/Native/退款）+ 支付宝（H5/Page/退款）
+- **多存储方案** - 本地存储 / 阿里云 OSS / 腾讯云 COS / MinIO
+- **会员系统** - 会员管理、等级体系、标签系统、积分日志
+- **响应式前端** - 桌面端 + 移动端自适应布局
+- **暗黑模式** - 一键切换亮色/暗色主题
+- **点击验证码** - 防暴力破解登录
+- **操作日志** - 完整的操作审计追踪
+
 ## 技术栈
 
 ### 后端 Backend
@@ -48,7 +59,7 @@
 
 ```
 go-admin/
-├── cmd/server/main.go              # 入口
+├── cmd/server/main.go              # 后端入口
 ├── config/
 │   ├── config.yaml                 # 应用配置
 │   ├── config.go                   # 配置加载
@@ -59,25 +70,102 @@ go-admin/
 │   ├── database/mysql.go           # MySQL 连接
 │   ├── logger/zap.go               # Zap 日志
 │   ├── middleware/                  # 7个中间件
+│   │   ├── auth.go                 # JWT 认证
+│   │   ├── casbin.go               # RBAC 鉴权
+│   │   ├── cors.go                 # 跨域处理
+│   │   ├── operation_log.go        # 操作日志
+│   │   ├── recovery.go             # 异常恢复
+│   │   ├── logger.go               # 请求日志
+│   │   └── tenant.go               # 多租户
 │   └── module/
-│       ├── system/                 # 系统管理模块
-│       ├── payment/                # 支付模块
-│       ├── member/                 # 会员模块
-│       └── captcha/                # 验证码
+│       ├── system/                 # 系统管理（用户/角色/菜单/部门/岗位/配置/字典/日志/文件/协议）
+│       │   ├── controller/
+│       │   ├── service/
+│       │   ├── repository/
+│       │   ├── model/
+│       │   ├── dto/
+│       │   └── vo/
+│       ├── payment/                # 支付模块（微信/支付宝）
+│       │   ├── controller/
+│       │   ├── service/
+│       │   ├── repository/
+│       │   └── model/
+│       ├── member/                 # 会员模块（会员/等级/标签/积分）
+│       │   ├── controller/
+│       │   ├── service/
+│       │   ├── repository/
+│       │   └── model/
+│       └── captcha/                # 验证码（无 Repository 层）
 ├── pkg/
-│   ├── auth/jwt.go                 # JWT 工具
+│   ├── auth/jwt.go                 # JWT Token 创建与验证
 │   ├── upload/                     # 多端文件上传
-│   ├── excel/excel.go              # Excel 导入导出
-│   ├── task/cron.go                # 定时任务调度
-│   └── utils/                      # 工具函数
-├── router/router.go                # 路由注册
-├── sql/init.sql                    # 数据库初始化
-├── web/                            # 前端 (Vue3)
+│   │   ├── upload.go               # 上传入口（自动选择存储方式）
+│   │   ├── local.go                # 本地存储
+│   │   ├── aliyun_oss.go           # 阿里云 OSS
+│   │   ├── tencent_cos.go          # 腾讯云 COS
+│   │   └── minio.go                # MinIO
+│   ├── excel/excel.go              # Excel 导入导出（excelize）
+│   ├── task/cron.go                # 定时任务调度（robfig/cron）
+│   └── utils/                      # 工具函数（Hash/Snowflake/字符串）
+├── router/router.go                # 路由注册（含 /uploads 静态服务）
+├── sql/
+│   └── init.sql                    # 数据库初始化脚本
+├── docs/                           # Swagger 文档
+├── web/                            # 前端 (Vue3 + Element Plus)
+│   └── src/
+│       ├── api/                    # API 接口定义（16个模块）
+│       ├── components/             # 公共组件（11个）
+│       │   ├── ClickCaptcha/       # 点击验证码
+│       │   ├── FormDialog/         # 表单弹窗
+│       │   ├── ImagePicker/        # 图片选择器
+│       │   ├── MobileAction/       # 移动端操作按钮
+│       │   ├── PageHeader/         # 页面头部
+│       │   ├── Pagination/         # 分页组件
+│       │   ├── RightPanel/         # 右侧面板
+│       │   ├── SvgIcon/            # SVG 图标
+│       │   ├── TableSkeleton/      # 表格骨架屏
+│       │   ├── Upload/             # 文件上传
+│       │   └── WangEditor/         # 富文本编辑器
+│       ├── hooks/                  # 组合式函数
+│       │   ├── useResponsive.ts    # 响应式断点
+│       │   └── useTheme.ts         # 主题切换
+│       ├── layout/                 # 布局组件
+│       │   ├── index.vue           # 主布局
+│       │   └── components/
+│       │       ├── Sidebar.vue     # 侧边栏
+│       │       ├── Navbar.vue      # 顶栏
+│       │       ├── TagsView.vue    # 标签页导航
+│       │       ├── AppMain.vue     # 主内容区
+│       │       └── Breadcrumb.vue  # 面包屑
+│       ├── router/                 # 路由配置（动态菜单）
+│       ├── store/modules/          # Pinia 状态
+│       │   ├── app.ts              # 应用状态
+│       │   ├── user.ts             # 用户状态
+│       │   ├── permission.ts       # 权限状态
+│       │   └── tagsView.ts         # 标签页状态
+│       ├── utils/                  # 工具函数
+│       │   ├── auth.ts             # Token 管理
+│       │   ├── request.ts          # Axios 封装
+│       │   └── format.ts           # 格式化工具
+│       └── views/                  # 页面视图
+│           ├── login/              # 登录页
+│           ├── dashboard/          # 仪表盘
+│           ├── error/              # 错误页
+│           ├── system/             # 系统管理页面
+│           ├── settings/           # 设置页面
+│           ├── member/             # 会员页面
+│           └── payment/            # 支付页面
 ├── AGENTS.md                       # AI Agent 开发规范
-└── README.md
+├── Makefile                        # 构建脚本
+├── start-all.ps1                   # 一键启动（Windows）
+├── start-backend.ps1               # 启动后端
+├── start-frontend.ps1              # 启动前端
+└── run.bat                         # 后端运行脚本
 ```
 
 ## 架构设计
+
+### 后端三层架构
 
 ```
 Controller (接口层)
@@ -100,6 +188,17 @@ Repository (数据层)
 ```
 全局: Recovery → Logger → Cors → Tenant
 鉴权: Auth → CasbinAuth → OperationLog（仅受保护路由组）
+```
+
+### 前端架构
+
+```
+Vue3 + Element Plus + Pinia + Vue Router
+
+API 层: Axios 拦截器 + JWT Token 自动注入
+路由层: 动态路由（后端菜单驱动）+ 前端路由守卫
+状态层: Pinia (app/user/permission/tagsView)
+视图层: 组件化开发 + 响应式布局
 ```
 
 ### 安全特性
@@ -133,7 +232,7 @@ Repository (数据层)
 | 日志管理 | 操作日志 + 登录日志 | `/api/v1/system/log/*` |
 | 附件管理 | 图片上传、预览、删除 | `/api/v1/system/file/*` |
 | 协议管理 | 用户协议/隐私政策 | `/api/v1/system/agreement/*` |
-| 仪表盘 | 数据统计概览 | `/api/v1/system/dashboard/*` |
+| 仪表盘 | 数据统计概览 | `/api/v1/dashboard/stats` |
 
 ### 支付管理
 
@@ -144,6 +243,19 @@ Repository (数据层)
 | 关闭订单 | 关闭待支付订单 | `POST /api/v1/system/pay/order/close` |
 | 申请退款 | 微信/支付宝退款 | `POST /api/v1/system/pay/order/refund` |
 | 支付回调 | 微信/支付宝异步通知 | `POST /api/v1/pay/notify/*` |
+
+**微信支付支持**：
+- JSAPI 支付（公众号/小程序）
+- Native 支付（扫码支付）
+- 退款（部分/全额）
+- 订单查询
+
+**支付宝支持**：
+- H5 支付（手机网页）
+- App 支付
+- Page 支付（电脑网站）
+- 退款
+- 订单查询
 
 ### 会员管理
 
@@ -171,6 +283,16 @@ Repository (数据层)
 - MinIO（S3 兼容）
 - 启动时自动读取 `sys_config` 表 `oss.*` 配置选择存储方式
 - 支持格式：图片（jpg/png/gif/bmp/svg/webp）、视频（mp4/mov/avi）、音频（mp3/wav）、文档（pdf/doc/xls/ppt）、压缩包（zip/rar/7z）
+
+### 前端特性
+
+- **响应式布局** - 桌面端/平板/手机自适应
+- **暗黑模式** - 一键切换亮色/暗色主题
+- **动态菜单** - 后端菜单驱动，支持多级目录
+- **标签页导航** - 多标签页快速切换
+- **富文本编辑器** - 集成 WangEditor
+- **图片选择器** - 从已上传文件中选择
+- **表格骨架屏** - 加载状态优化
 
 ## 快速开始
 
@@ -275,23 +397,92 @@ cors:
 | oss.secret_key | SecretKey | |
 | oss.domain | 自定义域名 | |
 
-## Makefile
+## 开发指南
+
+### 后端开发
 
 ```bash
-make build         # 编译
-make run           # 运行
-make test          # 测试
-make lint          # 静态检查 (go vet)
-make swagger       # 生成 Swagger 文档
-make deps          # 整理依赖 (go mod tidy)
-make clean         # 清理编译产物
+# 编译
+make build
+
+# 运行
+make run
+
+# 测试
+make test
+
+# 静态检查
+make lint
+
+# 生成 Swagger 文档
+make swagger
+
+# 整理依赖
+make deps
+
+# 清理编译产物
+make clean
 ```
+
+### 前端开发
+
+```bash
+cd web
+
+# 安装依赖
+npm install
+
+# 开发服务器（热重载）
+npm run dev
+
+# 构建生产版本
+npm run build
+
+# 类型检查
+npm run build  # 包含 vue-tsc 类型检查
+```
+
+### 代码规范
+
+- Go 代码遵循 `gofmt` 标准格式
+- 错误处理必须显式检查，禁止 `_` 忽略关键错误
+- 所有公开函数必须有注释（Swagger 格式）
+- DTO 使用 `binding` tag 进行参数校验
+- Model 使用 `gorm` tag 定义数据库字段
+- JSON 字段使用小驼峰命名
+- 前端 API 文件与后端路由模块一一对应
+- 前端组件优先使用 Element Plus 内置组件
 
 ## 测试
 
 ```bash
+# 后端测试
 go test ./...
+
+# 模块测试
+go test ./internal/module/payment/... -v
+
+# 前端构建测试
+cd web && npm run build
 ```
+
+## 常见问题
+
+### Q: 启动后端报错 "connection refused"
+
+A: 确保 MySQL 和 Redis 服务已启动，并检查 `config/config.yaml` 中的连接配置。
+
+### Q: 前端页面空白
+
+A: 检查后端是否已启动（前端通过代理访问 `/api`），以及浏览器控制台是否有错误。
+
+### Q: 文件上传失败
+
+A: 检查 `sys_config` 表中的 OSS 配置，确保 `oss.type` 正确设置。
+
+### Q: 支付回调收不到
+
+A: 确保支付回调地址 `pay.notify_url` 可公网访问，且已在微信/支付宝后台配置。
 
 ## 打赏
 
