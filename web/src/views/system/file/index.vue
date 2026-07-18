@@ -19,7 +19,7 @@
         </el-select>
       </div>
 
-      <div v-if="loading" style="text-align:center;padding:60px 0;color:#909399">加载中...</div>
+      <div v-if="loading" class="loading-text">加载中...</div>
 
       <div v-else class="gallery-grid">
         <div
@@ -205,6 +205,12 @@ async function handleDelete(row: any) {
   margin-bottom: 16px;
 }
 
+.loading-text {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--el-text-color-secondary);
+}
+
 .gallery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -230,7 +236,7 @@ async function handleDelete(row: any) {
   &__img {
     width: 100%;
     height: 140px;
-    background: #f5f7fa;
+    background: var(--el-fill-color-lighter);
     cursor: pointer;
     overflow: hidden;
     display: flex;
@@ -260,7 +266,7 @@ async function handleDelete(row: any) {
     align-items: center;
     justify-content: space-between;
     padding: 6px 8px;
-    background: #fff;
+    background: var(--el-bg-color);
   }
 
   &__name {

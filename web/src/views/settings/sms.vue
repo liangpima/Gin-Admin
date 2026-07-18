@@ -231,7 +231,7 @@ onMounted(() => loadData())
     align-items: center;
     gap: 12px;
     padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--el-border-color-lighter);
 
     &:last-child {
       border-bottom: none;
@@ -254,7 +254,7 @@ onMounted(() => loadData())
 
     .template-hint {
       font-size: 12px;
-      color: #909399;
+      color: var(--el-text-color-secondary);
     }
 
     @include mobile {

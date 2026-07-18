@@ -299,7 +299,7 @@ onMounted(() => {
     }
 
     &.is-focus {
-      box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px rgba(64, 158, 255, 0.1);
+      box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px var(--color-primary-50);
     }
   }
 
@@ -326,7 +326,7 @@ onMounted(() => {
 
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+    box-shadow: 0 4px 12px var(--color-primary-300);
   }
 
   &:active {

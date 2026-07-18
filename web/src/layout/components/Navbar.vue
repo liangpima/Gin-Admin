@@ -77,18 +77,17 @@ async function handleLogout() {
 @use '@/assets/styles/responsive.scss' as *;
 
 .navbar {
-  height: var(--navbar-height);
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--spacing-lg);
-  background: var(--color-bg-navbar);
-  box-shadow: var(--shadow-sm);
-  border-bottom: 1px solid var(--color-border-lighter);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow);
+  padding: 0 20px;
+  background: var(--el-bg-color);
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 
   @include mobile {
-    padding: 0 var(--spacing-md);
+    padding: 0 12px;
   }
 }
 
@@ -100,22 +99,22 @@ async function handleLogout() {
 .hamburger {
   font-size: 20px;
   cursor: pointer;
-  margin-right: var(--spacing-md);
-  color: var(--color-text-regular);
+  margin-right: 12px;
+  color: var(--el-text-color-regular);
   padding: 4px;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  border-radius: 4px;
+  transition: all 0.15s;
 
   &:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-primary);
+    background: var(--el-fill-color-light);
+    color: var(--el-color-primary);
   }
 }
 
 .right-menu {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: 8px;
 }
 
 .right-menu__icon {
@@ -125,13 +124,13 @@ async function handleLogout() {
   width: 36px;
   height: 36px;
   cursor: pointer;
-  color: var(--color-text-regular);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  color: var(--el-text-color-regular);
+  border-radius: 6px;
+  transition: all 0.15s;
 
   &:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-primary);
+    background: var(--el-fill-color-light);
+    color: var(--el-color-primary);
   }
 }
 
@@ -140,24 +139,24 @@ async function handleLogout() {
   align-items: center;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  border-radius: 6px;
+  transition: all 0.15s;
 
   &:hover {
-    background: var(--color-bg-hover);
+    background: var(--el-fill-color-light);
   }
 
   .avatar {
-    background: var(--color-primary);
+    background: var(--el-color-primary);
     color: white;
-    font-weight: var(--font-weight-semibold);
+    font-weight: 600;
   }
 
   .username {
-    margin-left: var(--spacing-sm);
-    font-size: var(--font-size-base);
-    color: var(--color-text-regular);
-    font-weight: var(--font-weight-medium);
+    margin-left: 8px;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+    font-weight: 500;
 
     @include mobile {
       display: none;
@@ -165,9 +164,9 @@ async function handleLogout() {
   }
 
   .avatar-arrow {
-    margin-left: var(--spacing-xs);
+    margin-left: 4px;
     font-size: 12px;
-    color: var(--color-text-secondary);
+    color: var(--el-text-color-secondary);
   }
 }
 </style>

@@ -38,7 +38,7 @@
         <el-table-column prop="memberId" label="会员ID" width="80" />
         <el-table-column label="变更积分" width="100" align="right">
           <template #default="{ row }">
-            <span :style="{ color: row.change > 0 ? '#67c23a' : '#f56c6c' }">
+            <span :class="row.change > 0 ? 'points-positive' : 'points-negative'">
               {{ row.change > 0 ? '+' : '' }}{{ row.change }}
             </span>
           </template>
@@ -110,6 +110,16 @@ onMounted(() => loadData())
 </script>
 
 <style lang="scss" scoped>
+.points-positive {
+  color: var(--el-color-success);
+  font-weight: 500;
+}
+
+.points-negative {
+  color: var(--el-color-danger);
+  font-weight: 500;
+}
+
 .table-card {
   :deep(.el-card__header) {
     border-bottom-color: var(--color-border-lighter);

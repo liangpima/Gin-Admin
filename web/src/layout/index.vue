@@ -39,7 +39,7 @@ const { isMobile } = useResponsive()
   left: 0;
   width: 100%;
   height: 100%;
-  background: var(--color-bg-mask);
+  background: rgba(0, 0, 0, 0.3);
   z-index: 999;
   animation: fadeIn 0.2s ease;
 }
@@ -50,13 +50,11 @@ const { isMobile } = useResponsive()
 }
 
 .sidebar-container {
-  width: var(--sidebar-width);
+  width: 210px;
   height: 100vh;
-  background: var(--color-bg-sidebar);
-  transition: width var(--transition-normal);
+  transition: width 0.28s;
   flex-shrink: 0;
   overflow: hidden;
-  border-right: 1px solid var(--color-sidebar-logo-border);
 
   @include mobile {
     position: fixed;
@@ -65,7 +63,7 @@ const { isMobile } = useResponsive()
     overflow: hidden;
 
     &.is-open {
-      width: var(--sidebar-width);
+      width: 210px;
     }
   }
 }
@@ -77,7 +75,6 @@ const { isMobile } = useResponsive()
   min-height: 100vh;
   overflow: hidden;
   background: var(--color-bg-page);
-  transition: background-color var(--transition-slow);
 
   @include mobile {
     width: 100%;

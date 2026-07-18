@@ -2,8 +2,8 @@
   <div class="dashboard">
     <el-row :gutter="16">
       <el-col :xs="24" :sm="12" :md="6" v-for="(item, index) in statCards" :key="item.label">
-        <div class="stat-card" :style="{ '--card-color': item.color, animationDelay: `${index * 0.1}s` }">
-          <div class="stat-card__icon" :style="{ background: item.bgColor }">
+        <div class="stat-card" :class="item.colorClass" :style="{ animationDelay: `${index * 0.1}s` }">
+          <div class="stat-card__icon">
             <el-icon :size="24"><component :is="item.icon" /></el-icon>
           </div>
           <div class="stat-card__info">
@@ -38,7 +38,7 @@
 
         <div class="modules-grid">
           <div class="module-item" v-for="mod in modules" :key="mod.title">
-            <div class="module-item__icon" :style="{ background: mod.bgColor }">
+            <div class="module-item__icon" :class="mod.colorClass">
               <el-icon :size="18"><component :is="mod.icon" /></el-icon>
             </div>
             <div class="module-item__info">
@@ -69,21 +69,21 @@ const stats = ref<DashboardStats>({
 const animatedValues = ref<number[]>([0, 0, 0, 0])
 
 const statCards = computed(() => [
-  { label: '用户总数', icon: 'User', color: '#409eff', bgColor: 'rgba(64, 158, 255, 0.1)' },
-  { label: '角色数量', icon: 'UserFilled', color: '#67c23a', bgColor: 'rgba(103, 194, 58, 0.1)' },
-  { label: '菜单数量', icon: 'Menu', color: '#e6a23c', bgColor: 'rgba(230, 162, 60, 0.1)' },
-  { label: '部门数量', icon: 'OfficeBuilding', color: '#f56c6c', bgColor: 'rgba(245, 108, 108, 0.1)' },
+  { label: '用户总数', icon: 'User', colorClass: 'color-primary' },
+  { label: '角色数量', icon: 'UserFilled', colorClass: 'color-success' },
+  { label: '菜单数量', icon: 'Menu', colorClass: 'color-warning' },
+  { label: '部门数量', icon: 'OfficeBuilding', colorClass: 'color-danger' },
 ])
 
 const modules = [
-  { title: '用户管理', desc: '用户增删改查', icon: 'User', bgColor: 'rgba(64, 158, 255, 0.1)' },
-  { title: '角色管理', desc: '权限分配', icon: 'UserFilled', bgColor: 'rgba(103, 194, 58, 0.1)' },
-  { title: '菜单管理', desc: '三级菜单', icon: 'Menu', bgColor: 'rgba(230, 162, 60, 0.1)' },
-  { title: '部门管理', desc: '树形结构', icon: 'OfficeBuilding', bgColor: 'rgba(245, 108, 108, 0.1)' },
-  { title: '系统设置', desc: '系统配置', icon: 'Tools', bgColor: 'rgba(144, 147, 153, 0.1)' },
-  { title: '参数管理', desc: '参数配置', icon: 'Setting', bgColor: 'rgba(64, 158, 255, 0.1)' },
-  { title: '数据字典', desc: '字典维护', icon: 'Notebook', bgColor: 'rgba(103, 194, 58, 0.1)' },
-  { title: '日志管理', desc: '操作与登录日志', icon: 'Document', bgColor: 'rgba(230, 162, 60, 0.1)' },
+  { title: '用户管理', desc: '用户增删改查', icon: 'User', colorClass: 'color-primary' },
+  { title: '角色管理', desc: '权限分配', icon: 'UserFilled', colorClass: 'color-success' },
+  { title: '菜单管理', desc: '三级菜单', icon: 'Menu', colorClass: 'color-warning' },
+  { title: '部门管理', desc: '树形结构', icon: 'OfficeBuilding', colorClass: 'color-danger' },
+  { title: '系统设置', desc: '系统配置', icon: 'Tools', colorClass: 'color-info' },
+  { title: '参数管理', desc: '参数配置', icon: 'Setting', colorClass: 'color-primary' },
+  { title: '数据字典', desc: '字典维护', icon: 'Notebook', colorClass: 'color-success' },
+  { title: '日志管理', desc: '操作与登录日志', icon: 'Document', colorClass: 'color-warning' },
 ]
 
 function animateCount(target: number, index: number) {
@@ -131,6 +131,28 @@ onMounted(async () => {
   }
 }
 
+// Color classes for stat cards and module icons
+.color-primary {
+  --card-color: var(--el-color-primary);
+  --card-bg: var(--el-color-primary-light-9);
+}
+.color-success {
+  --card-color: var(--el-color-success);
+  --card-bg: var(--el-color-success-light-9);
+}
+.color-warning {
+  --card-color: var(--el-color-warning);
+  --card-bg: var(--el-color-warning-light-9);
+}
+.color-danger {
+  --card-color: var(--el-color-danger);
+  --card-bg: var(--el-color-danger-light-9);
+}
+.color-info {
+  --card-color: var(--el-color-info);
+  --card-bg: var(--el-color-info-light-9);
+}
+
 .stat-card {
   background: var(--color-bg-card);
   border-radius: var(--card-radius);
@@ -157,6 +179,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--card-bg);
   color: var(--card-color);
   flex-shrink: 0;
   transition: transform var(--transition-fast);
@@ -262,7 +285,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-primary);
+  background: var(--card-bg);
+  color: var(--card-color);
   flex-shrink: 0;
 }
 

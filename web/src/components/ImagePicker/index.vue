@@ -270,7 +270,7 @@ watch(visible, (val) => {
   &__img {
     width: 100%;
     height: 110px;
-    background: #f5f7fa;
+    background: var(--el-fill-color-lighter);
     position: relative;
     overflow: hidden;
     display: flex;
@@ -317,7 +317,7 @@ watch(visible, (val) => {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    background: #fff;
+    background: var(--el-bg-color);
   }
 }
 </style>

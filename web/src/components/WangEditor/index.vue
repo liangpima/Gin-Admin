@@ -109,14 +109,14 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .wangeditor-wrapper {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--el-border-color);
   border-radius: 6px;
   overflow: visible;
   position: relative;
 }
 
 .wangeditor-toolbar {
-  border-bottom: 1px solid #dcdfe6;
+  border-bottom: 1px solid var(--el-border-color);
   position: relative;
   z-index: 10;
 }

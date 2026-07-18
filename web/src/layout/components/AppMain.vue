@@ -26,17 +26,16 @@ const cachedViews = computed(() => tagsViewStore.cachedViews)
 
 .app-main {
   flex: 1;
-  padding: var(--spacing-lg);
+  padding: 20px;
   overflow: auto;
   background: var(--color-bg-page);
-  transition: background-color var(--transition-slow);
 
   @include mobile {
-    padding: var(--spacing-md);
+    padding: 12px;
   }
 
   @include tablet {
-    padding: var(--spacing-base);
+    padding: 16px;
   }
 }
 </style>

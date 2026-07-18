@@ -150,7 +150,7 @@ onMounted(() => {
   border: 1px solid var(--el-border-color);
   border-radius: 6px;
   overflow: visible;
-  background: #fff;
+  background: var(--el-bg-color);
   width: 100%;
 }
 
@@ -159,7 +159,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: #f5f7fa;
+  background: var(--el-fill-color-lighter);
   border-bottom: 1px solid var(--el-border-color-lighter);
   font-size: 13px;
   color: var(--el-text-color-regular);
@@ -215,12 +215,12 @@ onMounted(() => {
   z-index: 3;
 
   &--success {
-    background: rgba(103, 194, 58, 0.85);
+    background: var(--el-color-success);
     color: #fff;
   }
 
   &--fail {
-    background: rgba(245, 108, 108, 0.85);
+    background: var(--el-color-danger);
     color: #fff;
   }
 }

@@ -54,46 +54,45 @@ function closeTag(tag: any) {
 
 <style lang="scss" scoped>
 .tags-view-container {
-  height: var(--tagsview-height);
-  background: var(--color-bg-card);
-  border-bottom: 1px solid var(--color-border-lighter);
-  transition: background-color var(--transition-slow), border-color var(--transition-slow);
+  height: 34px;
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .tags-view-wrapper {
   display: flex;
   align-items: center;
-  padding: 0 var(--spacing-sm);
-  height: var(--tagsview-height);
+  padding: 0 8px;
+  height: 34px;
   gap: 6px;
 }
 
 .tags-view-item {
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--spacing-md);
-  height: 28px;
-  border: 1px solid var(--color-border-lighter);
-  color: var(--color-text-regular);
-  background: var(--color-bg-card);
-  font-size: var(--font-size-xs);
+  padding: 0 10px;
+  height: 26px;
+  border: 1px solid var(--el-border-color);
+  color: var(--el-text-color-regular);
+  background: var(--el-bg-color);
+  font-size: 12px;
   text-decoration: none;
-  border-radius: var(--radius-sm);
+  border-radius: 3px;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.15s;
   white-space: nowrap;
 
   &:hover {
-    color: var(--color-primary);
-    border-color: var(--color-primary-200);
-    background: var(--color-primary-50);
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-color-primary-light-9);
   }
 
   &.active {
-    background-color: var(--color-bg-tag-active);
-    color: #ffffff;
-    border-color: var(--color-bg-tag-active);
-    font-weight: var(--font-weight-medium);
+    background-color: var(--el-color-primary);
+    color: #fff;
+    border-color: var(--el-color-primary);
+    font-weight: 500;
 
     .tags-view-item__close {
       color: rgba(255, 255, 255, 0.7);
@@ -118,10 +117,10 @@ function closeTag(tag: any) {
   border-radius: 50%;
   font-size: 12px;
   padding: 1px;
-  transition: all var(--transition-fast);
+  transition: all 0.15s;
 
   &:hover {
-    background-color: rgba(0, 0, 0, 0.12);
+    background-color: var(--el-fill-color);
   }
 }
 </style>

@@ -27,7 +27,7 @@
         <el-table-column prop="subject" label="订单标题" min-width="150" />
         <el-table-column label="金额" width="100" align="right">
           <template #default="{ row }">
-            <span style="color: #f56c6c; font-weight: bold">¥{{ (row.amount / 100).toFixed(2) }}</span>
+            <span class="amount-text">¥{{ (row.amount / 100).toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="渠道" width="100" align="center">
@@ -158,6 +158,11 @@ onMounted(() => loadData())
 </script>
 
 <style lang="scss" scoped>
+.amount-text {
+  color: var(--el-color-danger);
+  font-weight: bold;
+}
+
 .search-bar {
   display: flex;
   gap: 12px;

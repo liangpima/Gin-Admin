@@ -49,7 +49,7 @@
         </el-form-item>
         <el-form-item label="会员ID位数" prop="memberIdDigits">
           <el-input-number v-model="form.memberIdDigits" :min="4" :max="12" :step="1" />
-          <span style="margin-left: 8px; color: #909399">如 6 表示从 000001 开始</span>
+          <span class="form-hint">如 6 表示从 000001 开始</span>
         </el-form-item>
       </el-form>
     </el-card>
@@ -141,6 +141,12 @@ onMounted(() => loadData())
 </script>
 
 <style lang="scss" scoped>
+.form-hint {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;

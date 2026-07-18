@@ -73,7 +73,7 @@
         </el-form-item>
         <el-form-item label="折扣">
           <el-input-number v-model="form.discount" :min="1" :max="10" :step="0.5" :precision="1" />
-          <span style="margin-left: 8px; color: #909399">如 9.5 表示九五折，10 表示不打折</span>
+          <span class="form-hint">如 9.5 表示九五折，10 表示不打折</span>
         </el-form-item>
         <el-form-item label="图标">
           <div class="logo-upload">
@@ -219,6 +219,12 @@ onMounted(() => loadData())
 </script>
 
 <style lang="scss" scoped>
+.form-hint {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .logo-upload {
   .logo-preview {
     width: 80px;

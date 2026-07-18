@@ -65,7 +65,7 @@
         </el-form-item>
         <el-form-item label="颜色">
           <el-color-picker v-model="form.color" />
-          <span style="margin-left: 8px; color: #909399">{{ form.color }}</span>
+          <span class="form-hint">{{ form.color }}</span>
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="form.sort" :min="0" />
@@ -184,6 +184,12 @@ onMounted(() => loadData())
 </script>
 
 <style lang="scss" scoped>
+.form-hint {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .table-card {
   :deep(.el-card__header) {
     border-bottom-color: var(--color-border-lighter);

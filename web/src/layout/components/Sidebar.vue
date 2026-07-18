@@ -4,7 +4,7 @@
       <div class="logo__icon">
         <img v-if="siteLogo" :src="siteLogo" class="logo__img" />
         <svg v-else viewBox="0 0 32 32" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="32" height="32" rx="8" fill="var(--color-primary)"/>
+          <rect width="32" height="32" rx="8" fill="var(--el-color-primary)"/>
           <path d="M8 16L16 8L24 16L16 24L8 16Z" fill="white" opacity="0.9"/>
         </svg>
       </div>
@@ -16,8 +16,6 @@
       <el-menu
         :default-active="activeMenu"
         :collapse="menuCollapse"
-        text-color="#a3a6b4"
-        active-text-color="#409eff"
         :unique-opened="true"
         router
       >
@@ -103,16 +101,17 @@ onMounted(async () => {
 
 .sidebar {
   height: 100vh;
-  background: var(--sidebar-menu-bg);
-  transition: width var(--transition-normal);
-  width: var(--sidebar-width);
+  background: var(--el-bg-color);
+  transition: width 0.28s;
+  width: 210px;
   flex-shrink: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  border-right: 1px solid var(--el-border-color-lighter);
 
   &.is-collapse {
-    width: var(--sidebar-collapsed-width);
+    width: 64px;
   }
 
   @include mobile {
@@ -123,18 +122,17 @@ onMounted(async () => {
     width: 0;
 
     &.is-open {
-      width: var(--sidebar-width);
+      width: 210px;
     }
   }
 
   :deep(.el-menu) {
     border-right: none !important;
     width: 100%;
-    background-color: var(--sidebar-menu-bg) !important;
   }
 
   :deep(.el-scrollbar) {
-    height: calc(100vh - 52px);
+    height: calc(100vh - 50px);
   }
 
   :deep(.el-scrollbar__view) {
@@ -143,15 +141,14 @@ onMounted(async () => {
 }
 
 .logo {
-  height: 52px;
-  min-height: 52px;
+  height: 50px;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
-  background: var(--color-sidebar-logo-bg);
-  border-bottom: 1px solid var(--color-sidebar-logo-border);
-  padding: 0 var(--spacing-md);
+  gap: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding: 0 12px;
   overflow: hidden;
 }
 
@@ -160,29 +157,26 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
 }
 
 .logo__img {
   width: 24px;
   height: 24px;
   object-fit: contain;
-  border-radius: var(--radius-md);
 }
 
 .logo__text {
-  color: #ffffff;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
+  color: var(--el-text-color-primary);
+  font-size: 16px;
+  font-weight: 600;
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
-  letter-spacing: 0.5px;
 }
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity var(--transition-fast);
+  transition: opacity 0.15s;
 }
 
 .fade-enter-from,

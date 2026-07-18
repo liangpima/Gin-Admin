@@ -60,7 +60,7 @@ defineEmits<{
     padding: 20px 24px 16px;
     margin: 0;
     border-bottom: 1px solid var(--el-border-color-lighter);
-    background: linear-gradient(135deg, #f8faff 0%, #f0f5ff 100%);
+    background: var(--el-fill-color-lighter);
 
     .el-dialog__title {
       font-size: 16px;
@@ -109,7 +109,7 @@ defineEmits<{
   }
 
   &.is-focus {
-    box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px rgba(64, 158, 255, 0.1);
+    box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px var(--el-color-primary-light-9);
   }
 }
 

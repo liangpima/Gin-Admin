@@ -1,5 +1,211 @@
 @use './responsive.scss' as *;
 
+// Legacy token aliases - maps old custom tokens to Element Plus defaults
+// so existing view files continue to work without modification
+:root {
+  // Colors - map to Element Plus
+  --color-primary: var(--el-color-primary);
+  --color-primary-50: var(--el-color-primary-light-9);
+  --color-primary-100: var(--el-color-primary-light-8);
+  --color-primary-200: var(--el-color-primary-light-5);
+  --color-primary-300: var(--el-color-primary-light-3);
+  --color-primary-600: var(--el-color-primary-dark-2);
+  --color-primary-700: var(--el-color-primary-dark-2);
+
+  --color-success: var(--el-color-success);
+  --color-warning: var(--el-color-warning);
+  --color-danger: var(--el-color-danger);
+  --color-info: var(--el-color-info);
+
+  // Backgrounds (light mode defaults)
+  --color-bg-page: #f5f7fa;
+  --color-bg-card: var(--el-bg-color);
+  --color-bg-hover: var(--el-fill-color-light);
+  --color-bg-active: var(--el-color-primary-light-9);
+  --color-bg-table-header: #fafafa;
+  --color-bg-mask: rgba(0, 0, 0, 0.5);
+
+  // Text
+  --color-text-primary: var(--el-text-color-primary);
+  --color-text-regular: var(--el-text-color-regular);
+  --color-text-secondary: var(--el-text-color-secondary);
+  --color-text-placeholder: var(--el-text-color-placeholder);
+  --color-text-title: var(--el-text-color-primary);
+
+  // Line heights
+  --line-height-tight: 1.25;
+  --line-height-relaxed: 1.625;
+
+  // Borders
+  --color-border-base: var(--el-border-color);
+  --color-border-light: var(--el-border-color-light);
+  --color-border-lighter: var(--el-border-color-lighter);
+
+  // Spacing
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-base: 16px;
+  --spacing-lg: 20px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+
+  // Font sizes
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-2xl: 24px;
+
+  // Font weights
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  // Border radius
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-round: 9999px;
+  --card-radius: 8px;
+
+  // Shadows
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  // Transitions
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.35s ease;
+
+  // Layout
+  --sidebar-width: 210px;
+  --sidebar-collapsed-width: 64px;
+  --navbar-height: 50px;
+  --tagsview-height: 34px;
+
+  // Sidebar
+  --color-sidebar-logo-bg: #fff;
+  --color-sidebar-logo-border: var(--el-border-color-lighter);
+}
+
+// Dark mode - override Element Plus CSS variables directly
+html.dark {
+  // Custom aliases
+  --color-bg-page: #0a0a0a;
+  --color-bg-table-header: #141414;
+  --color-sidebar-logo-bg: #141414;
+
+  // Element Plus core variables
+  --el-bg-color: #141414;
+  --el-bg-color-page: #0a0a0a;
+  --el-bg-color-overlay: #1d1e2c;
+  --el-bg-color-blank: #141414;
+
+  // Text
+  --el-text-color-primary: #e5eaf3;
+  --el-text-color-regular: #cfd3dc;
+  --el-text-color-secondary: #a3a6ad;
+  --el-text-color-placeholder: #8d9095;
+  --el-text-color-disabled: #6c6e72;
+
+  // Border
+  --el-border-color: #4c4d4f;
+  --el-border-color-light: #414243;
+  --el-border-color-lighter: #363637;
+  --el-border-color-extra-light: #2b2b2c;
+  --el-border-color-hover: var(--el-color-primary);
+
+  // Fill
+  --el-fill-color: #303030;
+  --el-fill-color-light: #262727;
+  --el-fill-color-lighter: #1d1d1d;
+  --el-fill-color-blank: #141414;
+  --el-fill-color-extra-light: #1a1a1a;
+
+  // Mask
+  --el-mask-color: rgba(0, 0, 0, 0.8);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.3);
+
+  // Box shadow
+  --el-box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.3);
+  --el-box-shadow-light: 0 3px 6px -4px rgba(0, 0, 0, 0.3), 0 6px 16px 0 rgba(0, 0, 0, 0.2), 0 9px 28px 8px rgba(0, 0, 0, 0.1);
+  --el-box-shadow-lighter: 0 3px 6px -4px rgba(0, 0, 0, 0.3), 0 6px 16px 0 rgba(0, 0, 0, 0.2);
+  --el-box-shadow-dark: 0 3px 6px -4px rgba(0, 0, 0, 0.48), 0 6px 16px 0 rgba(0, 0, 0, 0.32), 0 9px 28px 8px rgba(0, 0, 0, 0.2);
+
+  // Disabled
+  --el-disabled-bg-color: #1d1d1d;
+  --el-disabled-text-color: #4c4d4f;
+  --el-disabled-border-color: #414243;
+
+  // Menu
+  --el-menu-active-color: var(--el-color-primary);
+  --el-menu-hover-bg-color: #262727;
+
+  // Dialog
+  --el-dialog-bg-color: #1d1d1d;
+
+  // Table
+  --el-table-bg-color: #141414;
+  --el-table-tr-bg-color: #141414;
+  --el-table-header-bg-color: #1a1a1a;
+  --el-table-header-text-color: #e5eaf3;
+  --el-table-row-hover-bg-color: #262727;
+  --el-table-border-color: #363637;
+  --el-table-current-row-bg-color: #1a2332;
+  --el-table-text-color: #cfd3dc;
+
+  // Input
+  --el-input-bg-color: #1a1a1a;
+  --el-input-border-color: #4c4d4f;
+  --el-input-hover-border-color: #6c6d70;
+  --el-input-focus-border-color: var(--el-color-primary);
+  --el-input-text-color: #e5eaf3;
+  --el-input-placeholder-color: #8d9095;
+  --el-input-icon-color: #8d9095;
+
+  // Select
+  --el-select-border-color-hover: var(--el-color-primary);
+
+  // Card
+  --el-card-bg-color: #1d1d1d;
+  --el-card-border-color: #363637;
+
+  // Tag
+  --el-tag-bg-color: #262727;
+  --el-tag-border-color: #363637;
+
+  // Pagination
+  --el-pagination-bg-color: transparent;
+  --el-pagination-text-color: #cfd3dc;
+  --el-pagination-button-color: #cfd3dc;
+  --el-pagination-hover-color: var(--el-color-primary);
+
+  // Tabs
+  --el-tabs__item-hover-color: #e5eaf3;
+  --el-tabs__item-active-color: var(--el-color-primary);
+  --el-tabs__nav-wrap::after: #363637;
+
+  // Breadcrumb
+  --el-breadcrumb__inner-text-color: #a3a6ad;
+  --el-breadcrumb__inner-link-color: #a3a6ad;
+
+  // Popover
+  --el-popover-border-color: #363637;
+
+  // Dropdown
+  --el-dropdown-menuItem-hover-fill: #262727;
+
+  // Form
+  --el-form-label-color: #cfd3dc;
+
+  // Switch
+  --el-switch-on-color: var(--el-color-primary);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -9,35 +215,29 @@
 html, body, #app {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: var(--font-size-base);
-  color: var(--color-text-primary);
-  background: var(--color-bg-page);
-  transition: background-color var(--transition-slow), color var(--transition-slow);
 }
 
 a {
-  color: var(--color-text-link);
+  color: var(--el-color-primary);
   text-decoration: none;
-  transition: color var(--transition-fast);
 
   &:hover {
-    color: var(--color-primary-600);
+    color: var(--el-color-primary-light-3);
   }
 }
 
-// App container for CRUD pages
+// Page container for CRUD pages
 .app-container {
   padding: 0;
 }
 
 // Search form card style
 .search-form {
-  background: var(--color-bg-card);
-  border-radius: var(--card-radius);
-  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-xs);
-  margin-bottom: var(--spacing-base);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border-lighter);
+  background: var(--el-bg-color);
+  border-radius: var(--el-border-radius-base);
+  padding: 18px 18px 0;
+  margin-bottom: 16px;
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 // Card header pattern
@@ -45,20 +245,20 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 // Pagination wrapper
 .pagination-wrapper {
   display: flex;
   justify-content: flex-end;
-  margin-top: var(--spacing-base);
+  margin-top: 16px;
 }
 
 // Page transition animations
 .fade-transform-enter-active,
 .fade-transform-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s;
 }
 
 .fade-transform-enter-from {
@@ -82,36 +282,15 @@ a {
   opacity: 0;
 }
 
-// Slide up transition
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slide-up-enter-from {
-  opacity: 0;
-  transform: translateY(12px);
-}
-
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translateY(-12px);
-}
-
 // NProgress customization
 #nprogress {
   .bar {
-    background: var(--color-primary) !important;
+    background: var(--el-color-primary) !important;
     height: 3px !important;
   }
 
   .peg {
-    box-shadow: 0 0 10px var(--color-primary), 0 0 5px var(--color-primary) !important;
-  }
-
-  .spinner-icon {
-    border-top-color: var(--color-primary) !important;
-    border-left-color: var(--color-primary) !important;
+    box-shadow: 0 0 10px var(--el-color-primary), 0 0 5px var(--el-color-primary) !important;
   }
 }
 
@@ -131,9 +310,9 @@ a {
   }
 
   .search-form {
-    padding: var(--spacing-md) var(--spacing-md) 0;
-    margin-bottom: var(--spacing-sm);
-    border-radius: var(--radius-md);
+    padding: 12px 12px 0;
+    margin-bottom: 8px;
+    border-radius: var(--el-border-radius-base);
   }
 
   .search-form .el-form-item {
@@ -142,16 +321,11 @@ a {
 
   // Table compact on mobile
   .el-table {
-    font-size: var(--font-size-sm);
+    font-size: 13px;
 
     .el-table__header th,
     .el-table__body td {
       padding: 6px 0 !important;
-    }
-
-    .el-table__fixed-right,
-    .el-table__fixed {
-      display: none !important;
     }
   }
 
@@ -163,12 +337,12 @@ a {
 
   // Card padding
   .el-card__body {
-    padding: var(--spacing-md) !important;
+    padding: 12px !important;
   }
 
   // Stack columns
   .el-col + .el-col {
-    margin-top: var(--spacing-md);
+    margin-top: 12px;
   }
 
   // Form labels
@@ -191,7 +365,7 @@ a {
   }
 }
 
-// el-menu collapse mode - comprehensive fix
+// el-menu collapse mode
 .el-menu--collapse {
   .el-sub-menu__title,
   .el-menu-item {
@@ -214,47 +388,6 @@ a {
   }
 }
 
-// Sidebar submenu popup styling (rendered outside scoped component)
-.sidebar .el-menu--popup,
-.sidebar .el-menu--popup-container {
-  background-color: var(--sidebar-menu-bg) !important;
-}
-
-.sidebar .el-menu-item,
-.sidebar .el-sub-menu__title {
-  color: #a3a6b4 !important;
-
-  .el-icon {
-    display: inline-flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-
-  &:hover {
-    background: #282a3a !important;
-    color: #ffffff !important;
-  }
-
-  &.is-active {
-    background: rgba(64, 158, 255, 0.15) !important;
-    color: #409eff !important;
-  }
-}
-
-.sidebar .el-sub-menu .el-menu-item {
-  background-color: #161726 !important;
-  color: #a3a6b4 !important;
-
-  &:hover {
-    background: #282a3a !important;
-    color: #ffffff !important;
-  }
-
-  &.is-active {
-    color: #409eff !important;
-  }
-}
-
 // Extra specificity for arrow hiding
 .el-menu--collapse .el-sub-menu .el-sub-menu__icon-arrow,
 .el-menu--collapse .el-sub-menu__title .el-sub-menu__icon-arrow {
@@ -265,54 +398,6 @@ a {
   overflow: hidden !important;
   margin: 0 !important;
   font-size: 0 !important;
-}
-
-// Ensure sidebar icons are always visible
-.sidebar .el-sub-menu .el-sub-menu__title .el-icon,
-.sidebar .el-sub-menu.is-opened .el-sub-menu__title .el-icon {
-  display: inline-flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  flex-shrink: 0;
-}
-
-// Skeleton animation
-.el-skeleton {
-  --el-skeleton-color: var(--color-border-lighter);
-  --el-skeleton-to-color: var(--color-bg-hover);
-}
-
-// El-tag in dark mode fix
-[data-theme="dark"] {
-  .el-tag--success {
-    --el-tag-bg-color: rgba(103, 194, 58, 0.15);
-  }
-  .el-tag--danger {
-    --el-tag-bg-color: rgba(245, 108, 108, 0.15);
-  }
-  .el-tag--warning {
-    --el-tag-bg-color: rgba(230, 162, 60, 0.15);
-  }
-  .el-tag--info {
-    --el-tag-bg-color: rgba(144, 147, 153, 0.15);
-  }
-}
-
-// Smooth theme transition on key elements
-body,
-.el-card,
-.el-dialog,
-.el-table,
-.el-menu,
-.navbar,
-.tags-view-container,
-.app-main,
-.el-input__wrapper,
-.el-select__wrapper,
-.el-pagination,
-.el-tag,
-.el-tabs__item {
-  transition: background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow), box-shadow var(--transition-slow);
 }
 
 // WangEditor global fixes

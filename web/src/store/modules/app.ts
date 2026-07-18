@@ -16,9 +16,13 @@ function getInitialTheme(): 'light' | 'dark' {
   return saved || 'light'
 }
 
-// Sync theme to DOM on store init
+// Sync theme to DOM on store init - uses Element Plus dark mode (class="dark" on <html>)
 const initialTheme = getInitialTheme()
-document.documentElement.setAttribute('data-theme', initialTheme)
+if (initialTheme === 'dark') {
+  document.documentElement.classList.add('dark')
+} else {
+  document.documentElement.classList.remove('dark')
+}
 
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
@@ -50,7 +54,11 @@ export const useAppStore = defineStore('app', {
     },
 
     _syncTheme() {
-      document.documentElement.setAttribute('data-theme', this.theme)
+      if (this.theme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
       localStorage.setItem(STORAGE_KEY, this.theme)
     },
 
