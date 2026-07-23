@@ -18,7 +18,7 @@ type MemberRepository interface {
 	FindList(tenantID uint, phone, nickname string, levelID uint, status int8, page, pageSize int) ([]model.Member, int64, error)
 	UpdateStatus(tenantID, id uint, status int8) error
 	ReplaceTags(memberID uint, tagIDs []uint) error
-	FindTagsByMemberID(memberID uint) ([]model.MemberTag, error)
+	FindTagIDsByMemberID(memberID uint) ([]uint, error)
 	UpdatePoints(memberID uint, points int64) error
 	FindMaxMemberNo(tenantID uint) (string, error)
 }
@@ -103,13 +103,12 @@ func (r *memberRepository) ReplaceTags(memberID uint, tagIDs []uint) error {
 	})
 }
 
-func (r *memberRepository) FindTagsByMemberID(memberID uint) ([]model.MemberTag, error) {
-	var tags []model.MemberTag
-	err := database.DB.
-		Joins("JOIN pay_member_tag_rel ON pay_member_tag_rel.tag_id = pay_member_tag.id").
-		Where("pay_member_tag_rel.member_id = ?", memberID).
-		Find(&tags).Error
-	return tags, err
+func (r *memberRepository) FindTagIDsByMemberID(memberID uint) ([]uint, error) {
+	var tagIDs []uint
+	err := database.DB.Model(&model.MemberTagRel{}).
+		Where("member_id = ?", memberID).
+		Pluck("tag_id", &tagIDs).Error
+	return tagIDs, err
 }
 
 func (r *memberRepository) UpdatePoints(memberID uint, points int64) error {

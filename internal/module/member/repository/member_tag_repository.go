@@ -10,6 +10,7 @@ type MemberTagRepository interface {
 	Update(tag *model.MemberTag) error
 	Delete(id uint) error
 	FindByID(id uint) (*model.MemberTag, error)
+	FindByIDs(ids []uint) ([]model.MemberTag, error)
 	FindList(name string, page, pageSize int) ([]model.MemberTag, int64, error)
 	FindAll() ([]model.MemberTag, error)
 }
@@ -36,6 +37,12 @@ func (r *memberTagRepository) FindByID(id uint) (*model.MemberTag, error) {
 	var tag model.MemberTag
 	err := database.DB.First(&tag, id).Error
 	return &tag, err
+}
+
+func (r *memberTagRepository) FindByIDs(ids []uint) ([]model.MemberTag, error) {
+	var tags []model.MemberTag
+	err := database.DB.Where("id IN ?", ids).Find(&tags).Error
+	return tags, err
 }
 
 func (r *memberTagRepository) FindList(name string, page, pageSize int) ([]model.MemberTag, int64, error) {

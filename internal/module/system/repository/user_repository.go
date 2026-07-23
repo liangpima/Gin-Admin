@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
 
@@ -9,18 +10,18 @@ import (
 
 type UserRepository interface {
 	Create(user *model.SysUser) error
-	FindByID(id uint) (*model.SysUser, error)
-	FindByUsername(username string) (*model.SysUser, error)
-	FindList(username, phone string, status *int8, deptID uint, page, pageSize int) ([]model.SysUser, int64, error)
+	FindByID(tenantID, id uint) (*model.SysUser, error)
+	FindByUsername(tenantID uint, username string) (*model.SysUser, error)
+	FindByUsernameForAuth(username string) (*model.SysUser, error)
+	FindList(tenantID uint, username, phone string, status *int8, deptID uint, page, pageSize int) ([]model.SysUser, int64, error)
 	Update(user *model.SysUser) error
-	Delete(id uint) error
-	UpdateStatus(id uint, status int8) error
-	ResetPassword(id uint, password string) error
+	Delete(tenantID, id uint) error
+	UpdateStatus(tenantID, id uint, status int8) error
+	ResetPassword(tenantID, id uint, password string) error
 	ReplaceRoles(userID uint, roleIDs []uint) error
 	ReplacePosts(userID uint, postIDs []uint) error
-	FindRolesByUserID(userID uint) ([]model.SysRole, error)
 	FindRoleIDsByUserID(userID uint) ([]uint, error)
-	CountByUsername(username string, excludeID uint) int64
+	CountByUsername(tenantID uint, username string, excludeID uint) int64
 }
 
 type userRepository struct {
@@ -35,23 +36,29 @@ func (r *userRepository) Create(user *model.SysUser) error {
 	return r.db.Create(user).Error
 }
 
-func (r *userRepository) FindByID(id uint) (*model.SysUser, error) {
+func (r *userRepository) FindByID(tenantID, id uint) (*model.SysUser, error) {
 	var user model.SysUser
-	err := r.db.First(&user, id).Error
+	err := common.TenantScope(r.db, tenantID).First(&user, id).Error
 	return &user, err
 }
 
-func (r *userRepository) FindByUsername(username string) (*model.SysUser, error) {
+func (r *userRepository) FindByUsername(tenantID uint, username string) (*model.SysUser, error) {
+	var user model.SysUser
+	err := common.TenantScope(r.db, tenantID).Where("username = ?", username).First(&user).Error
+	return &user, err
+}
+
+func (r *userRepository) FindByUsernameForAuth(username string) (*model.SysUser, error) {
 	var user model.SysUser
 	err := r.db.Where("username = ?", username).First(&user).Error
 	return &user, err
 }
 
-func (r *userRepository) FindList(username, phone string, status *int8, deptID uint, page, pageSize int) ([]model.SysUser, int64, error) {
+func (r *userRepository) FindList(tenantID uint, username, phone string, status *int8, deptID uint, page, pageSize int) ([]model.SysUser, int64, error) {
 	var users []model.SysUser
 	var total int64
 
-	query := r.db.Model(&model.SysUser{})
+	query := common.TenantScope(r.db.Model(&model.SysUser{}), tenantID)
 
 	if username != "" {
 		query = query.Where("username LIKE ?", "%"+username+"%")
@@ -79,16 +86,16 @@ func (r *userRepository) Update(user *model.SysUser) error {
 	return r.db.Model(user).Select("Username", "Nickname", "Phone", "Email", "Avatar", "Password", "Status", "DeptID", "Remark", "UpdateBy").Updates(user).Error
 }
 
-func (r *userRepository) Delete(id uint) error {
-	return r.db.Delete(&model.SysUser{}, id).Error
+func (r *userRepository) Delete(tenantID, id uint) error {
+	return common.TenantScope(r.db, tenantID).Delete(&model.SysUser{}, id).Error
 }
 
-func (r *userRepository) UpdateStatus(id uint, status int8) error {
-	return r.db.Model(&model.SysUser{}).Where("id = ?", id).Update("status", status).Error
+func (r *userRepository) UpdateStatus(tenantID, id uint, status int8) error {
+	return common.TenantScope(r.db, tenantID).Model(&model.SysUser{}).Where("id = ?", id).Update("status", status).Error
 }
 
-func (r *userRepository) ResetPassword(id uint, password string) error {
-	return r.db.Model(&model.SysUser{}).Where("id = ?", id).Update("password", password).Error
+func (r *userRepository) ResetPassword(tenantID, id uint, password string) error {
+	return common.TenantScope(r.db, tenantID).Model(&model.SysUser{}).Where("id = ?", id).Update("password", password).Error
 }
 
 func (r *userRepository) ReplaceRoles(userID uint, roleIDs []uint) error {
@@ -115,14 +122,6 @@ func (r *userRepository) ReplacePosts(userID uint, postIDs []uint) error {
 	return nil
 }
 
-func (r *userRepository) FindRolesByUserID(userID uint) ([]model.SysRole, error) {
-	var roles []model.SysRole
-	err := r.db.Joins("JOIN sys_user_role ON sys_user_role.role_id = sys_role.id").
-		Where("sys_user_role.user_id = ?", userID).
-		Find(&roles).Error
-	return roles, err
-}
-
 func (r *userRepository) FindRoleIDsByUserID(userID uint) ([]uint, error) {
 	var roleIDs []uint
 	err := r.db.Model(&model.SysUserRole{}).
@@ -131,9 +130,9 @@ func (r *userRepository) FindRoleIDsByUserID(userID uint) ([]uint, error) {
 	return roleIDs, err
 }
 
-func (r *userRepository) CountByUsername(username string, excludeID uint) int64 {
+func (r *userRepository) CountByUsername(tenantID uint, username string, excludeID uint) int64 {
 	var count int64
-	query := r.db.Model(&model.SysUser{}).Where("username = ?", username)
+	query := common.TenantScope(r.db.Model(&model.SysUser{}), tenantID).Where("username = ?", username)
 	if excludeID > 0 {
 		query = query.Where("id != ?", excludeID)
 	}

@@ -88,9 +88,14 @@
         </el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="primary" link size="small" @click="handleResetPwd(row)">重置密码</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <MobileAction
+              :actions="[
+                { label: '编辑', icon: 'Edit', color: 'var(--el-color-primary)' },
+                { label: '重置密码', icon: 'Key', color: 'var(--el-color-warning)' },
+                { label: '删除', icon: 'Delete', color: 'var(--el-color-danger)' }
+              ]"
+              @command="(cmd: string) => handleAction(cmd, row)"
+            />
           </template>
         </el-table-column>
       </el-table>
@@ -164,6 +169,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { getUserList, createUser, updateUser, deleteUser, resetPassword, updateUserStatus, updateUserRoles, updateUserDept } from '@/api/user'
 import ImagePicker from '@/components/ImagePicker/index.vue'
 import FormDialog from '@/components/FormDialog/index.vue'
+import MobileAction from '@/components/MobileAction/index.vue'
 import { formatDateTime } from '@/utils/format'
 import { getAllRoles } from '@/api/role'
 import { getDeptTree } from '@/api/dept'
@@ -349,6 +355,20 @@ async function handleResetPwd(row: any) {
 
 function handleAvatarPick(url: string | string[]) {
   form.avatar = url as string
+}
+
+function handleAction(cmd: string, row: any) {
+  switch (cmd) {
+    case '编辑':
+      handleEdit(row)
+      break
+    case '重置密码':
+      handleResetPwd(row)
+      break
+    case '删除':
+      handleDelete(row)
+      break
+  }
 }
 
 onMounted(() => {

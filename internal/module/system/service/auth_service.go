@@ -40,7 +40,7 @@ func NewAuthService() AuthService {
 }
 
 func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
-	user, err := s.userRepo.FindByUsername(req.Username)
+	user, err := s.userRepo.FindByUsernameForAuth(req.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("用户不存在")
@@ -121,21 +121,24 @@ func (s *authService) Logout(token string) error {
 }
 
 func (s *authService) GetUserInfo(userID uint) (*vo.UserInfoResponse, error) {
-	user, err := s.userRepo.FindByID(userID)
+	user, err := s.userRepo.FindByID(0, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	userRoles, err := s.userRepo.FindRolesByUserID(userID)
+	roleIDs, err := s.userRepo.FindRoleIDsByUserID(userID)
 	if err != nil {
 		return nil, err
 	}
 
-	roles := make([]vo.RoleInfo, 0, len(userRoles))
-	roleIDs := make([]uint, 0, len(userRoles))
-	for _, r := range userRoles {
-		roles = append(roles, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
-		roleIDs = append(roleIDs, r.ID)
+	roles := make([]vo.RoleInfo, 0, len(roleIDs))
+	if len(roleIDs) > 0 {
+		userRoles, err := s.roleRepo.FindByIDs(roleIDs)
+		if err == nil {
+			for _, r := range userRoles {
+				roles = append(roles, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
+			}
+		}
 	}
 
 	buttons := make([]string, 0)

@@ -32,8 +32,9 @@ func (ctl *UserController) Create(c *gin.Context) {
 		return
 	}
 
+	tenantID := common.GetTenantID(c)
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.userService.Create(&req, operatorID); err != nil {
+	if err := ctl.userService.Create(tenantID, &req, operatorID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -55,8 +56,9 @@ func (ctl *UserController) Update(c *gin.Context) {
 		return
 	}
 
+	tenantID := common.GetTenantID(c)
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.userService.Update(&req, operatorID); err != nil {
+	if err := ctl.userService.Update(tenantID, &req, operatorID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -77,7 +79,8 @@ func (ctl *UserController) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := ctl.userService.Delete(id); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.userService.Delete(tenantID, id); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -98,7 +101,8 @@ func (ctl *UserController) FindByID(c *gin.Context) {
 		return
 	}
 
-	user, err := ctl.userService.FindByID(id)
+	tenantID := common.GetTenantID(c)
+	user, err := ctl.userService.FindByID(tenantID, id)
 	if err != nil {
 		common.Error(c, common.CodeNotFound, "用户不存在")
 		return
@@ -125,7 +129,8 @@ func (ctl *UserController) FindList(c *gin.Context) {
 		return
 	}
 
-	users, total, err := ctl.userService.FindList(&req)
+	tenantID := common.GetTenantID(c)
+	users, total, err := ctl.userService.FindList(tenantID, &req)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
@@ -148,7 +153,8 @@ func (ctl *UserController) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	if err := ctl.userService.UpdateStatus(&req); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.userService.UpdateStatus(tenantID, &req); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -170,15 +176,14 @@ func (ctl *UserController) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// 只有管理员可重置其他用户密码，普通用户只能重置自己密码
+	tenantID := common.GetTenantID(c)
 	operatorID := common.GetCurrentUserID(c)
 	if req.ID != operatorID {
-		// TODO: 检查是否为管理员角色
 		common.Forbidden(c, "无权重置其他用户密码")
 		return
 	}
 
-	if err := ctl.userService.ResetPassword(&req); err != nil {
+	if err := ctl.userService.ResetPassword(tenantID, &req); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -200,7 +205,8 @@ func (ctl *UserController) UpdateRoles(c *gin.Context) {
 		return
 	}
 
-	if err := ctl.userService.UpdateRoles(&req); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.userService.UpdateRoles(tenantID, &req); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -222,7 +228,8 @@ func (ctl *UserController) UpdateDept(c *gin.Context) {
 		return
 	}
 
-	if err := ctl.userService.UpdateDept(&req); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.userService.UpdateDept(tenantID, &req); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}

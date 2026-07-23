@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"go-admin/internal/database"
 	"go-admin/internal/module/payment/model"
-	"go-admin/internal/module/payment/repository"
+	paymentRepo "go-admin/internal/module/payment/repository"
+	systemRepo "go-admin/internal/module/system/repository"
 )
 
 type PayNotifyResult struct {
@@ -21,13 +21,13 @@ type PayNotifyResult struct {
 }
 
 type PaymentService struct {
-	orderRepo repository.PayOrderRepository
+	orderRepo paymentRepo.PayOrderRepository
 	mu        sync.Mutex
 }
 
 func NewPaymentService() *PaymentService {
 	return &PaymentService{
-		orderRepo: repository.NewPayOrderRepository(),
+		orderRepo: paymentRepo.NewPayOrderRepository(),
 	}
 }
 
@@ -157,16 +157,115 @@ func (s *PaymentService) FindList(tenantID uint, subject string, status int8, ch
 	return s.orderRepo.FindList(tenantID, subject, status, channel, page, pageSize)
 }
 
-func loadPayConfig() map[string]string {
-	var configs []struct {
-		Key   string `gorm:"column:config_key"`
-		Value string
+type CreateOrderResult struct {
+	Order    *model.PayOrder
+	PayInfo  map[string]interface{}
+	PayError error
+}
+
+func (s *PaymentService) CreateOrderWithPayInfo(tenantID uint, orderNo, subject, body string, amount int64, channel, openID, extra string) (*CreateOrderResult, error) {
+	configs := LoadWechatPayConfig()
+	notifyURL := configs.NotifyURL
+
+	order, err := s.CreateOrder(tenantID, orderNo, subject, body, amount, channel, openID, notifyURL, extra)
+	if err != nil {
+		return nil, err
 	}
-	database.DB.Raw("SELECT `config_key`, `value` FROM sys_config WHERE `config_key` LIKE 'pay.%'").Scan(&configs)
+
+	result := &CreateOrderResult{
+		Order: order,
+		PayInfo: map[string]interface{}{
+			"orderNo": order.OrderNo,
+			"amount":  order.Amount,
+			"status":  order.Status,
+		},
+	}
+
+	switch channel {
+	case "wechat":
+		cfg := LoadWechatPayConfig()
+		gw := NewWechatPayGateway(*cfg)
+		payInfo, payErr := gw.Prepay(nil, orderNo, subject, body, amount, openID)
+		if payErr != nil {
+			result.PayError = payErr
+		} else {
+			for k, v := range payInfo {
+				result.PayInfo[k] = v
+			}
+		}
+	case "alipay":
+		cfg := LoadAlipayConfig()
+		gw := NewAlipayGateway(*cfg)
+		payInfo, payErr := gw.Prepay(nil, orderNo, subject, amount, cfg.ReturnURL)
+		if payErr != nil {
+			result.PayError = payErr
+		} else {
+			for k, v := range payInfo {
+				result.PayInfo[k] = v
+			}
+		}
+	}
+
+	return result, nil
+}
+
+type RefundOrderResult struct {
+	RefundNo string
+	Status   string
+	Error    error
+}
+
+func (s *PaymentService) RefundOrderWithPayInfo(tenantID uint, orderNo string, refundNo string, refundAmt int64) (*RefundOrderResult, error) {
+	order, err := s.GetOrder(tenantID, orderNo)
+	if err != nil {
+		return nil, err
+	}
+
+	if order.Status != 1 {
+		statusMap := map[int8]string{0: "待支付", 2: "已关闭", 3: "已退款"}
+		return nil, fmt.Errorf("订单状态为%s，无法退款", statusMap[order.Status])
+	}
+
+	if refundAmt > order.Amount {
+		return nil, fmt.Errorf("退款金额不能超过订单金额")
+	}
+
+	result := &RefundOrderResult{
+		RefundNo: refundNo,
+		Status:   "refunding",
+	}
+
+	switch order.Channel {
+	case "wechat":
+		cfg := LoadWechatPayConfig()
+		gw := NewWechatPayGateway(*cfg)
+		err = gw.Refund(nil, orderNo, refundNo, order.Amount, refundAmt)
+	case "alipay":
+		cfg := LoadAlipayConfig()
+		gw := NewAlipayGateway(*cfg)
+		_, err = gw.Refund(nil, orderNo, refundNo, refundAmt)
+	}
+
+	if err != nil {
+		result.Error = err
+		return result, nil
+	}
+
+	if err := s.RefundOrder(tenantID, orderNo, refundAmt); err != nil {
+		result.Error = fmt.Errorf("更新退款状态失败: %v", err)
+		return result, nil
+	}
+
+	return result, nil
+}
+
+func loadPayConfig() map[string]string {
+	configRepo := systemRepo.NewConfigRepository()
+	configs, _ := configRepo.FindByKeyPrefix("pay.")
 
 	cfgMap := make(map[string]string)
 	for _, c := range configs {
-		key := c.Key
+		key := c.ConfigKey
 		if len(key) > 4 && key[:4] == "pay." {
 			cfgMap[key[4:]] = c.Value
 		}

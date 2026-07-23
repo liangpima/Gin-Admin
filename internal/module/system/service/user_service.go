@@ -19,15 +19,15 @@ import (
 )
 
 type UserService interface {
-	Create(req *dto.CreateUserRequest, operatorID uint) error
-	Update(req *dto.UpdateUserRequest, operatorID uint) error
-	Delete(id uint) error
-	FindByID(id uint) (interface{}, error)
-	FindList(req *dto.UserListRequest) ([]interface{}, int64, error)
-	UpdateStatus(req *dto.StatusRequest) error
-	UpdateRoles(req *dto.UpdateUserRolesRequest) error
-	UpdateDept(req *dto.UpdateUserDeptRequest) error
-	ResetPassword(req *dto.ResetPasswordRequest) error
+	Create(tenantID uint, req *dto.CreateUserRequest, operatorID uint) error
+	Update(tenantID uint, req *dto.UpdateUserRequest, operatorID uint) error
+	Delete(tenantID, id uint) error
+	FindByID(tenantID, id uint) (interface{}, error)
+	FindList(tenantID uint, req *dto.UserListRequest) ([]interface{}, int64, error)
+	UpdateStatus(tenantID uint, req *dto.StatusRequest) error
+	UpdateRoles(tenantID uint, req *dto.UpdateUserRolesRequest) error
+	UpdateDept(tenantID uint, req *dto.UpdateUserDeptRequest) error
+	ResetPassword(tenantID uint, req *dto.ResetPasswordRequest) error
 	ChangePassword(userID uint, req *dto.ChangePasswordRequest) error
 }
 
@@ -41,8 +41,8 @@ func NewUserService() UserService {
 	}
 }
 
-func (s *userService) Create(req *dto.CreateUserRequest, operatorID uint) error {
-	if s.userRepo.CountByUsername(req.Username, 0) > 0 {
+func (s *userService) Create(tenantID uint, req *dto.CreateUserRequest, operatorID uint) error {
+	if s.userRepo.CountByUsername(tenantID, req.Username, 0) > 0 {
 		return errors.New("用户名已存在")
 	}
 
@@ -57,6 +57,7 @@ func (s *userService) Create(req *dto.CreateUserRequest, operatorID uint) error 
 				CreateBy: operatorID,
 				UpdateBy: operatorID,
 			},
+			TenantID: tenantID,
 		},
 		Username: req.Username,
 		Password: hash,
@@ -82,12 +83,12 @@ func (s *userService) Create(req *dto.CreateUserRequest, operatorID uint) error 
 	return nil
 }
 
-func (s *userService) Update(req *dto.UpdateUserRequest, operatorID uint) error {
-	if s.userRepo.CountByUsername("", req.ID) > 0 {
+func (s *userService) Update(tenantID uint, req *dto.UpdateUserRequest, operatorID uint) error {
+	if s.userRepo.CountByUsername(tenantID, "", req.ID) > 0 {
 		return errors.New("用户名已存在")
 	}
 
-	user, err := s.userRepo.FindByID(req.ID)
+	user, err := s.userRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("用户不存在")
@@ -117,15 +118,33 @@ func (s *userService) Update(req *dto.UpdateUserRequest, operatorID uint) error 
 	return nil
 }
 
-func (s *userService) Delete(id uint) error {
-	return s.userRepo.Delete(id)
+func (s *userService) Delete(tenantID, id uint) error {
+	return s.userRepo.Delete(tenantID, id)
 }
 
-func (s *userService) FindByID(id uint) (interface{}, error) {
-	return s.userRepo.FindByID(id)
+func (s *userService) FindByID(tenantID, id uint) (interface{}, error) {
+	user, err := s.userRepo.FindByID(tenantID, id)
+	if err != nil {
+		return nil, err
+	}
+
+	type userWithRoles struct {
+		model.SysUser
+		Roles []vo.RoleInfo `json:"roles"`
+	}
+
+	roleIDs, _ := s.userRepo.FindRoleIDsByUserID(user.ID)
+	roleRepo := repository.NewRoleRepository()
+	roles, _ := roleRepo.FindByIDs(roleIDs)
+	roleInfos := make([]vo.RoleInfo, 0, len(roles))
+	for _, r := range roles {
+		roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
+	}
+
+	return userWithRoles{SysUser: *user, Roles: roleInfos}, nil
 }
 
-func (s *userService) FindList(req *dto.UserListRequest) ([]interface{}, int64, error) {
+func (s *userService) FindList(tenantID uint, req *dto.UserListRequest) ([]interface{}, int64, error) {
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -133,7 +152,7 @@ func (s *userService) FindList(req *dto.UserListRequest) ([]interface{}, int64, 
 		req.PageSize = 10
 	}
 
-	users, total, err := s.userRepo.FindList(req.Username, req.Phone, req.Status, req.DeptID, req.Page, req.PageSize)
+	users, total, err := s.userRepo.FindList(tenantID, req.Username, req.Phone, req.Status, req.DeptID, req.Page, req.PageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -143,9 +162,11 @@ func (s *userService) FindList(req *dto.UserListRequest) ([]interface{}, int64, 
 		Roles []vo.RoleInfo `json:"roles"`
 	}
 
+	roleRepo := repository.NewRoleRepository()
 	result := make([]interface{}, len(users))
 	for i, u := range users {
-		roles, _ := s.userRepo.FindRolesByUserID(u.ID)
+		roleIDs, _ := s.userRepo.FindRoleIDsByUserID(u.ID)
+		roles, _ := roleRepo.FindByIDs(roleIDs)
 		roleInfos := make([]vo.RoleInfo, 0, len(roles))
 		for _, r := range roles {
 			roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
@@ -155,8 +176,8 @@ func (s *userService) FindList(req *dto.UserListRequest) ([]interface{}, int64, 
 	return result, total, nil
 }
 
-func (s *userService) UpdateStatus(req *dto.StatusRequest) error {
-	if err := s.userRepo.UpdateStatus(req.ID, req.Status); err != nil {
+func (s *userService) UpdateStatus(tenantID uint, req *dto.StatusRequest) error {
+	if err := s.userRepo.UpdateStatus(tenantID, req.ID, req.Status); err != nil {
 		return err
 	}
 	// 禁用用户时吊销其 Token
@@ -166,16 +187,16 @@ func (s *userService) UpdateStatus(req *dto.StatusRequest) error {
 	return nil
 }
 
-func (s *userService) UpdateRoles(req *dto.UpdateUserRolesRequest) error {
-	_, err := s.userRepo.FindByID(req.ID)
+func (s *userService) UpdateRoles(tenantID uint, req *dto.UpdateUserRolesRequest) error {
+	_, err := s.userRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		return errors.New("用户不存在")
 	}
 	return s.userRepo.ReplaceRoles(req.ID, req.RoleIds)
 }
 
-func (s *userService) UpdateDept(req *dto.UpdateUserDeptRequest) error {
-	user, err := s.userRepo.FindByID(req.ID)
+func (s *userService) UpdateDept(tenantID uint, req *dto.UpdateUserDeptRequest) error {
+	user, err := s.userRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		return errors.New("用户不存在")
 	}
@@ -183,16 +204,16 @@ func (s *userService) UpdateDept(req *dto.UpdateUserDeptRequest) error {
 	return s.userRepo.Update(user)
 }
 
-func (s *userService) ResetPassword(req *dto.ResetPasswordRequest) error {
+func (s *userService) ResetPassword(tenantID uint, req *dto.ResetPasswordRequest) error {
 	hash, err := utils.HashPassword(req.Password)
 	if err != nil {
 		return err
 	}
-	return s.userRepo.ResetPassword(req.ID, hash)
+	return s.userRepo.ResetPassword(tenantID, req.ID, hash)
 }
 
 func (s *userService) ChangePassword(userID uint, req *dto.ChangePasswordRequest) error {
-	user, err := s.userRepo.FindByID(userID)
+	user, err := s.userRepo.FindByID(0, userID)
 	if err != nil {
 		return err
 	}
@@ -205,7 +226,7 @@ func (s *userService) ChangePassword(userID uint, req *dto.ChangePasswordRequest
 	if err != nil {
 		return err
 	}
-	if err := s.userRepo.ResetPassword(userID, hash); err != nil {
+	if err := s.userRepo.ResetPassword(0, userID, hash); err != nil {
 		return err
 	}
 

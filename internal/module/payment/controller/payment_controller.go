@@ -46,12 +46,10 @@ func (ctl *PaymentController) CreateOrder(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	orderNo := fmt.Sprintf("PAY%d%04d", time.Now().UnixMilli(), time.Now().Nanosecond()%10000)
-	configs := service.LoadWechatPayConfig()
-	notifyURL := configs.NotifyURL
 
-	order, err := ctl.paymentService.CreateOrder(
+	result, err := ctl.paymentService.CreateOrderWithPayInfo(
 		tenantID, orderNo, req.Subject, req.Body,
-		req.Amount, req.Channel, req.OpenID, notifyURL, req.Extra,
+		req.Amount, req.Channel, req.OpenID, req.Extra,
 	)
 	if err != nil {
 		log.Printf("[payment] create order failed: %v", err)
@@ -59,38 +57,11 @@ func (ctl *PaymentController) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	result := map[string]interface{}{
-		"orderNo": order.OrderNo,
-		"amount":  order.Amount,
-		"status":  order.Status,
+	if result.PayError != nil {
+		result.PayInfo["payError"] = result.PayError.Error()
 	}
 
-	switch req.Channel {
-	case "wechat":
-		cfg := service.LoadWechatPayConfig()
-		gw := service.NewWechatPayGateway(*cfg)
-		payInfo, payErr := gw.Prepay(c, orderNo, req.Subject, req.Body, req.Amount, req.OpenID)
-		if payErr != nil {
-			result["payError"] = payErr.Error()
-		} else {
-			for k, v := range payInfo {
-				result[k] = v
-			}
-		}
-	case "alipay":
-		cfg := service.LoadAlipayConfig()
-		gw := service.NewAlipayGateway(*cfg)
-		payInfo, payErr := gw.Prepay(c, orderNo, req.Subject, req.Amount, cfg.ReturnURL)
-		if payErr != nil {
-			result["payError"] = payErr.Error()
-		} else {
-			for k, v := range payInfo {
-				result[k] = v
-			}
-		}
-	}
-
-	common.Success(c, result)
+	common.Success(c, result.PayInfo)
 }
 
 func (ctl *PaymentController) GetOrder(c *gin.Context) {
@@ -253,48 +224,20 @@ func (ctl *PaymentController) RefundOrder(c *gin.Context) {
 	}
 
 	tenantID := common.GetTenantID(c)
-	order, err := ctl.paymentService.GetOrder(tenantID, req.OrderNo)
+	result, err := ctl.paymentService.RefundOrderWithPayInfo(tenantID, req.OrderNo, req.RefundNo, req.RefundAmt)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "订单不存在")
+		common.Error(c, common.CodeNotFound, err.Error())
 		return
 	}
 
-	if order.Status != 1 {
-		statusMap := map[int8]string{0: "待支付", 2: "已关闭", 3: "已退款"}
-		common.Error(c, common.CodeBadRequest, "订单状态为"+statusMap[order.Status]+"，无法退款")
-		return
-	}
-
-	if req.RefundAmt > order.Amount {
-		common.Error(c, common.CodeBadRequest, "退款金额不能超过订单金额")
-		return
-	}
-
-	switch order.Channel {
-	case "wechat":
-		cfg := service.LoadWechatPayConfig()
-		gw := service.NewWechatPayGateway(*cfg)
-		err = gw.Refund(c, req.OrderNo, req.RefundNo, order.Amount, req.RefundAmt)
-	case "alipay":
-		cfg := service.LoadAlipayConfig()
-		gw := service.NewAlipayGateway(*cfg)
-		_, err = gw.Refund(c, req.OrderNo, req.RefundNo, req.RefundAmt)
-	}
-
-	if err != nil {
-		log.Printf("[payment] refund request failed: %v", err)
-		common.Error(c, common.CodeInternalError, "退款请求失败")
-		return
-	}
-
-	if err := ctl.paymentService.RefundOrder(tenantID, req.OrderNo, req.RefundAmt); err != nil {
-		log.Printf("[payment] refund update failed: %v", err)
-		common.Error(c, common.CodeInternalError, "更新退款状态失败")
+	if result.Error != nil {
+		log.Printf("[payment] refund failed: %v", result.Error)
+		common.Error(c, common.CodeInternalError, result.Error.Error())
 		return
 	}
 
 	common.Success(c, gin.H{
-		"refundNo": req.RefundNo,
-		"status":   "refunding",
+		"refundNo": result.RefundNo,
+		"status":   result.Status,
 	})
 }

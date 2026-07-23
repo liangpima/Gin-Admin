@@ -165,7 +165,8 @@ func (s *memberService) FindList(tenantID uint, req *dto.MemberListRequest) ([]i
 
 	result := make([]interface{}, len(members))
 	for i, m := range members {
-		tags, _ := s.memberRepo.FindTagsByMemberID(m.ID)
+		tagIDs, _ := s.memberRepo.FindTagIDsByMemberID(m.ID)
+		tags, _ := s.tagRepo.FindByIDs(tagIDs)
 		result[i] = memberWithTag{Member: m, Tags: tags}
 	}
 	return result, total, nil
