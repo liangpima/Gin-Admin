@@ -205,15 +205,16 @@ API 层: Axios 拦截器 + JWT Token 自动注入
 
 | 特性 | 实现 |
 |------|------|
-| 多租户隔离 | `TenantScope` 自动过滤，仅从 JWT 获取 tenant_id |
+| 多租户隔离 | `TenantScope` 自动过滤，仅从 JWT 获取 tenant_id，关联表操作同步过滤 |
 | 登录限频 | Redis IP 计数，5分钟/5次，超限锁定15分钟 |
-| Token 吊销 | 密码修改/用户禁用后自动失效 |
+| Token 黑名单 | 退出登录时 Access Token 加入 Redis 黑名单，Auth 中间件实时检查 |
+| Token 吊销 | 密码修改/用户禁用后自动吊销所有 Token |
+| 密码安全 | bcrypt 哈希 + 强度校验（大写/小写/数字至少两种，禁止空格） |
 | RBAC 权限 | Casbin 策略控制（空策略时跳过） |
 | CORS 白名单 | 生产环境必须配置 `cors.allow_origins` |
-| 文件上传校验 | 扩展名白名单 + 危险扩展名拦截 |
+| 文件上传校验 | 扩展名白名单 + 危险扩展名拦截，大小限制从配置读取 |
 | 支付回调验签 | 微信平台证书 RSA + 支付宝签名验证 |
 | 支付金额校验 | 回调时比对订单金额，防止篡改 |
-| 密码存储 | bcrypt 哈希 |
 | 开放重定向防护 | returnURL 协议和主机名校验 |
 
 ## 功能模块
@@ -273,7 +274,9 @@ API 层: Axios 拦截器 + JWT Token 自动注入
 - 用户 → 角色 → 菜单/按钮权限
 - 点击验证码（防暴力破解）
 - 登录限频（5分钟/5次，Redis 计数）
+- Token 黑名单（退出登录即时失效）
 - Token 吊销（密码修改/禁用后立即失效）
+- 密码强度校验（大小写+数字至少两种，禁止空格）
 
 ### 文件上传
 
@@ -450,6 +453,7 @@ npm run build  # 包含 vue-tsc 类型检查
 - DTO 使用 `binding` tag 进行参数校验
 - Model 使用 `gorm` tag 定义数据库字段
 - JSON 字段使用小驼峰命名
+- 日志统一使用 `internal/logger` 的 Zap 实例，禁止使用 `log.Printf`
 - 前端 API 文件与后端路由模块一一对应
 - 前端组件优先使用 Element Plus 内置组件
 

@@ -204,15 +204,16 @@ View Layer: Component-based development + Responsive layout
 
 | Feature | Implementation |
 |---------|----------------|
-| Multi-tenant Isolation | `TenantScope` auto-filter, tenant_id from JWT only |
+| Multi-tenant Isolation | `TenantScope` auto-filter, tenant_id from JWT only, relation tables also filtered |
 | Login Rate Limiting | Redis IP counter, 5 attempts / 5 min, lockout 15 min |
+| Token Blacklist | Access token added to Redis on logout, Auth middleware checks in real-time |
 | Token Revocation | Auto-invalidate on password change / user disable |
+| Password Security | bcrypt hashing + strength validation (upper/lower/digit, no spaces) |
 | RBAC | Casbin policy control (skip when no policies) |
 | CORS Whitelist | `cors.allow_origins` required in production |
-| File Upload Validation | Extension whitelist + dangerous extension block |
+| File Upload Validation | Extension whitelist + dangerous extension block, size limit from config |
 | Payment Callback Verification | WeChat platform cert RSA + Alipay signature |
 | Payment Amount Verification | Callback amount validation against order |
-| Password Storage | bcrypt hashing |
 | Open Redirect Protection | returnURL protocol and hostname validation |
 
 ## Features
@@ -270,7 +271,9 @@ View Layer: Component-based development + Responsive layout
 - User → Role → Menu/Button permissions
 - Click captcha (brute-force protection)
 - Login rate limiting (5 attempts / 5 min via Redis)
+- Token blacklist (immediate invalidation on logout)
 - Token revocation (immediate on password change / disable)
+- Password strength validation (upper/lower/digit, no spaces)
 
 ### File Upload
 
@@ -447,6 +450,7 @@ npm run build  # includes vue-tsc type check
 - DTO uses `binding` tag for parameter validation
 - Model uses `gorm` tag for database fields
 - JSON fields use camelCase naming
+- Logging uses Zap (`internal/logger`), no `log.Printf` allowed
 - Frontend API files correspond one-to-one with backend routes
 - Frontend components prefer Element Plus built-in components
 
