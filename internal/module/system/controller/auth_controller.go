@@ -8,6 +8,7 @@ import (
 
 	"go-admin/internal/cache"
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
 	captchaModel "go-admin/internal/module/captcha/model"
 	captchaService "go-admin/internal/module/captcha/service"
 	"go-admin/internal/module/system/dto"
@@ -135,7 +136,9 @@ func (ctl *AuthController) Logout(c *gin.Context) {
 		if claims, err := auth.ParseToken(accessToken); err == nil && claims.ExpiresAt != nil {
 			ttl := time.Until(claims.ExpiresAt.Time)
 			if ttl > 0 {
-				_ = cache.RevokeToken(context.Background(), accessToken, ttl)
+				if err := cache.RevokeToken(context.Background(), accessToken, ttl); err != nil {
+				logger.Log.Warnf("token加入黑名单失败: %v", err)
+			}
 			}
 		}
 		_ = ctl.authService.Logout(token[7:])

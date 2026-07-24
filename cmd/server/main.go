@@ -9,6 +9,7 @@ import (
 	"go-admin/internal/cache"
 	"go-admin/internal/database"
 	"go-admin/internal/logger"
+	"go-admin/internal/module/system/service"
 	"go-admin/pkg/upload"
 	"go-admin/router"
 )
@@ -50,7 +51,7 @@ func main() {
 		logger.Log.Warnf("初始化Redis失败(可选): %v", err)
 	}
 
-	upload.Init()
+	upload.Init(service.LoadOSSConfig())
 
 	r := router.Setup(config.Cfg.Server.Mode)
 

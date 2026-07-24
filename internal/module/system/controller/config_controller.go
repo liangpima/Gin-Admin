@@ -144,7 +144,7 @@ func (ctl *ConfigController) BatchSave(c *gin.Context) {
 	}
 
 	if req.Prefix == "oss." {
-		upload.Reload()
+		upload.Reload(service.LoadOSSConfig())
 	}
 	common.Success(c, nil)
 }

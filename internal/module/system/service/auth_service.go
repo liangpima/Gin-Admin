@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go-admin/config"
@@ -28,14 +29,14 @@ type AuthService interface {
 type authService struct {
 	userRepo    repository.UserRepository
 	roleService RoleService
-	menuRepo    repository.MenuRepository
+	menuService MenuService
 }
 
 func NewAuthService() AuthService {
 	return &authService{
 		userRepo:    repository.NewUserRepository(),
 		roleService: NewRoleService(),
-		menuRepo:    repository.NewMenuRepository(),
+		menuService: NewMenuService(),
 	}
 }
 
@@ -67,7 +68,9 @@ func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
 	}
 
 	ctx := context.Background()
-	_ = cache.Set(ctx, "refresh_token:"+refreshToken, user.ID, time.Duration(config.Cfg.JWT.RefreshExpire)*time.Second)
+	if err := cache.Set(ctx, "refresh_token:"+refreshToken, user.ID, time.Duration(config.Cfg.JWT.RefreshExpire)*time.Second); err != nil {
+		return nil, fmt.Errorf("存储refresh token失败: %w", err)
+	}
 
 	now := time.Now()
 	user.LoginTime = &now
@@ -105,7 +108,9 @@ func (s *authService) RefreshToken(req *dto.RefreshTokenRequest) (*vo.LoginRespo
 		return nil, err
 	}
 
-	_ = cache.Set(ctx, "refresh_token:"+refreshToken, claims.UserID, time.Duration(config.Cfg.JWT.RefreshExpire)*time.Second)
+	if err := cache.Set(ctx, "refresh_token:"+refreshToken, claims.UserID, time.Duration(config.Cfg.JWT.RefreshExpire)*time.Second); err != nil {
+		return nil, fmt.Errorf("存储refresh token失败: %w", err)
+	}
 
 	return &vo.LoginResponse{
 		AccessToken:  accessToken,
@@ -145,7 +150,7 @@ func (s *authService) GetUserInfo(userID uint) (*vo.UserInfoResponse, error) {
 	menuInfos := make([]vo.MenuInfo, 0)
 
 	if len(roleIDs) > 0 {
-		menus, err := s.menuRepo.FindMenusByRoleIDs(roleIDs)
+		menus, err := s.menuService.FindMenusByRoleIDs(roleIDs)
 		if err == nil {
 			for _, m := range menus {
 				if m.Type == common.MenuTypeButton && m.Permission != "" {

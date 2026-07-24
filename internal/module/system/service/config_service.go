@@ -121,3 +121,20 @@ func (s *configService) BatchSave(prefix string, items []ConfigItem, operatorID 
 	}
 	return nil
 }
+
+// LoadOSSConfig 从 sys_config 表读取 oss.* 配置，返回 key-value map
+func LoadOSSConfig() map[string]string {
+	svc := NewConfigService()
+	results, _ := svc.FindByPrefix("oss.")
+
+	cfgMap := make(map[string]string)
+	for _, r := range results {
+		if cfg, ok := r.(model.SysConfig); ok {
+			key := cfg.ConfigKey
+			if len(key) > 4 && key[:4] == "oss." {
+				cfgMap[key[4:]] = cfg.Value
+			}
+		}
+	}
+	return cfgMap
+}

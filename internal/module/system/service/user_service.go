@@ -11,6 +11,7 @@ import (
 	"go-admin/config"
 	"go-admin/internal/cache"
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
@@ -252,10 +253,14 @@ func (s *userService) ChangePassword(userID uint, req *dto.ChangePasswordRequest
 func (s *userService) revokeUserTokens(userID uint) {
 	ctx := context.Background()
 	key := "refresh_token:user:" + fmt.Sprintf("%d", userID)
-	_ = cache.Del(ctx, key)
+	if err := cache.Del(ctx, key); err != nil {
+		logger.Log.Warnf("吊销refresh token失败: %v", err)
+	}
 	// 同时设置一个标记，使得该用户的所有旧 access token 失效
-	_ = cache.Set(ctx, "user:token_revoked:"+fmt.Sprintf("%d", userID), "1",
-		time.Duration(config.Cfg.JWT.AccessExpire)*time.Second)
+	if err := cache.Set(ctx, "user:token_revoked:"+fmt.Sprintf("%d", userID), "1",
+		time.Duration(config.Cfg.JWT.AccessExpire)*time.Second); err != nil {
+		logger.Log.Warnf("设置token吊销标记失败: %v", err)
+	}
 }
 
 // validatePasswordStrength 校验密码强度：至少包含大写字母、小写字母、数字中的两种

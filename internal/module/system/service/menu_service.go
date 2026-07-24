@@ -19,6 +19,7 @@ type MenuService interface {
 	FindAll() ([]model.SysMenu, error)
 	FindTree() ([]model.SysMenu, error)
 	FindTreeForManage() ([]model.SysMenu, error)
+	FindMenusByRoleIDs(roleIDs []uint) ([]model.SysMenu, error)
 }
 
 type menuService struct {
@@ -110,4 +111,8 @@ func (s *menuService) FindTreeForManage() ([]model.SysMenu, error) {
 		return nil, err
 	}
 	return buildMenuTree(menus, 0), nil
+}
+
+func (s *menuService) FindMenusByRoleIDs(roleIDs []uint) ([]model.SysMenu, error) {
+	return s.menuRepo.FindMenusByRoleIDs(roleIDs)
 }

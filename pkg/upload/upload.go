@@ -7,9 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go-admin/internal/database"
-	"go-admin/internal/module/system/model"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -40,8 +37,16 @@ var dangerousExts = map[string]bool{
 	".js": true, ".vbs": true, ".wsf": true, ".scr": true,
 }
 
-func Init() {
-	cfg := loadOSSConfig()
+// Init 初始化上传模块，cfgMap 为 oss.* 配置的 key-value map
+func Init(cfgMap map[string]string) {
+	cfg := OSSConfig{
+		Type:      cfgMap["type"],
+		Endpoint:  cfgMap["endpoint"],
+		Bucket:    cfgMap["bucket"],
+		AccessKey: cfgMap["access_key"],
+		SecretKey: cfgMap["secret_key"],
+		Domain:    cfgMap["domain"],
+	}
 
 	switch cfg.Type {
 	case "aliyun":
@@ -77,30 +82,9 @@ func Init() {
 	}
 }
 
-func loadOSSConfig() OSSConfig {
-	var configs []model.SysConfig
-	database.DB.Where("config_key LIKE ?", "oss.%").Find(&configs)
-
-	cfgMap := make(map[string]string)
-	for _, c := range configs {
-		key := c.ConfigKey
-		if len(key) > 4 && key[:4] == "oss." {
-			cfgMap[key[4:]] = c.Value
-		}
-	}
-
-	return OSSConfig{
-		Type:      cfgMap["type"],
-		Endpoint:  cfgMap["endpoint"],
-		Bucket:    cfgMap["bucket"],
-		AccessKey: cfgMap["access_key"],
-		SecretKey: cfgMap["secret_key"],
-		Domain:    cfgMap["domain"],
-	}
-}
-
-func Reload() {
-	Init()
+// Reload 重新加载上传配置
+func Reload(cfgMap map[string]string) {
+	Init(cfgMap)
 }
 
 // ValidateFile 校验文件扩展名白名单
