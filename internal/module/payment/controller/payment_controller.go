@@ -3,10 +3,10 @@ package controller
 import (
 	"fmt"
 	"io"
-	"log"
 	"time"
 
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
 	"go-admin/internal/module/payment/service"
 
 	"github.com/gin-gonic/gin"
@@ -52,7 +52,7 @@ func (ctl *PaymentController) CreateOrder(c *gin.Context) {
 		req.Amount, req.Channel, req.OpenID, req.Extra,
 	)
 	if err != nil {
-		log.Printf("[payment] create order failed: %v", err)
+		logger.Log.Infof("[payment] create order failed: %v", err)
 		common.Error(c, common.CodeInternalError, "创建订单失败")
 		return
 	}
@@ -121,28 +121,28 @@ func (ctl *PaymentController) FindList(c *gin.Context) {
 func (ctl *PaymentController) WechatNotify(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		log.Printf("[pay-notify] wechat read body failed: %v", err)
+		logger.Log.Infof("[pay-notify] wechat read body failed: %v", err)
 		c.JSON(200, gin.H{"code": "FAIL", "message": "read body failed"})
 		return
 	}
 	defer c.Request.Body.Close()
 
-	log.Printf("[pay-notify] wechat received body length: %d", len(body))
+	logger.Log.Infof("[pay-notify] wechat received body length: %d", len(body))
 
 	cfg := service.LoadWechatPayConfig()
 	gw := service.NewWechatPayGateway(*cfg)
 
 	result, err := gw.ParseNotify(body, c.Request.Header)
 	if err != nil {
-		log.Printf("[pay-notify] wechat parse failed: %v", err)
+		logger.Log.Infof("[pay-notify] wechat parse failed: %v", err)
 		c.JSON(200, gin.H{"code": "FAIL", "message": err.Error()})
 		return
 	}
 
-	log.Printf("[pay-notify] wechat order_no=%s trade_no=%s status=%s", result.OrderNo, result.TradeNo, result.Status)
+	logger.Log.Infof("[pay-notify] wechat order_no=%s trade_no=%s status=%s", result.OrderNo, result.TradeNo, result.Status)
 
 	if err := ctl.paymentService.HandleNotify("wechat", result); err != nil {
-		log.Printf("[pay-notify] wechat handle failed: %v", err)
+		logger.Log.Infof("[pay-notify] wechat handle failed: %v", err)
 		c.JSON(200, gin.H{"code": "FAIL", "message": err.Error()})
 		return
 	}
@@ -153,28 +153,28 @@ func (ctl *PaymentController) WechatNotify(c *gin.Context) {
 func (ctl *PaymentController) AlipayNotify(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		log.Printf("[pay-notify] alipay read body failed: %v", err)
+		logger.Log.Infof("[pay-notify] alipay read body failed: %v", err)
 		c.String(200, "fail")
 		return
 	}
 	defer c.Request.Body.Close()
 
-	log.Printf("[pay-notify] alipay received body length: %d", len(body))
+	logger.Log.Infof("[pay-notify] alipay received body length: %d", len(body))
 
 	cfg := service.LoadAlipayConfig()
 	gw := service.NewAlipayGateway(*cfg)
 
 	result, err := gw.ParseNotify(body)
 	if err != nil {
-		log.Printf("[pay-notify] alipay parse failed: %v", err)
+		logger.Log.Infof("[pay-notify] alipay parse failed: %v", err)
 		c.String(200, "fail")
 		return
 	}
 
-	log.Printf("[pay-notify] alipay order_no=%s trade_no=%s status=%s", result.OrderNo, result.TradeNo, result.Status)
+	logger.Log.Infof("[pay-notify] alipay order_no=%s trade_no=%s status=%s", result.OrderNo, result.TradeNo, result.Status)
 
 	if err := ctl.paymentService.HandleNotify("alipay", result); err != nil {
-		log.Printf("[pay-notify] alipay handle failed: %v", err)
+		logger.Log.Infof("[pay-notify] alipay handle failed: %v", err)
 		c.String(200, "fail")
 		return
 	}
@@ -231,7 +231,7 @@ func (ctl *PaymentController) RefundOrder(c *gin.Context) {
 	}
 
 	if result.Error != nil {
-		log.Printf("[payment] refund failed: %v", result.Error)
+		logger.Log.Infof("[payment] refund failed: %v", result.Error)
 		common.Error(c, common.CodeInternalError, result.Error.Error())
 		return
 	}

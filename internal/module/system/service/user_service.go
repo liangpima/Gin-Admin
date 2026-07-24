@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 
 	"go-admin/config"
 	"go-admin/internal/cache"
@@ -44,6 +46,10 @@ func NewUserService() UserService {
 func (s *userService) Create(tenantID uint, req *dto.CreateUserRequest, operatorID uint) error {
 	if s.userRepo.CountByUsername(tenantID, req.Username, 0) > 0 {
 		return errors.New("用户名已存在")
+	}
+
+	if err := validatePasswordStrength(req.Password); err != nil {
+		return err
 	}
 
 	hash, err := utils.HashPassword(req.Password)
@@ -134,8 +140,8 @@ func (s *userService) FindByID(tenantID, id uint) (interface{}, error) {
 	}
 
 	roleIDs, _ := s.userRepo.FindRoleIDsByUserID(user.ID)
-	roleRepo := repository.NewRoleRepository()
-	roles, _ := roleRepo.FindByIDs(roleIDs)
+	roleService := NewRoleService()
+	roles, _ := roleService.FindByIDs(roleIDs)
 	roleInfos := make([]vo.RoleInfo, 0, len(roles))
 	for _, r := range roles {
 		roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
@@ -162,11 +168,11 @@ func (s *userService) FindList(tenantID uint, req *dto.UserListRequest) ([]inter
 		Roles []vo.RoleInfo `json:"roles"`
 	}
 
-	roleRepo := repository.NewRoleRepository()
+	roleService := NewRoleService()
 	result := make([]interface{}, len(users))
 	for i, u := range users {
 		roleIDs, _ := s.userRepo.FindRoleIDsByUserID(u.ID)
-		roles, _ := roleRepo.FindByIDs(roleIDs)
+		roles, _ := roleService.FindByIDs(roleIDs)
 		roleInfos := make([]vo.RoleInfo, 0, len(roles))
 		for _, r := range roles {
 			roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
@@ -205,6 +211,9 @@ func (s *userService) UpdateDept(tenantID uint, req *dto.UpdateUserDeptRequest) 
 }
 
 func (s *userService) ResetPassword(tenantID uint, req *dto.ResetPasswordRequest) error {
+	if err := validatePasswordStrength(req.Password); err != nil {
+		return err
+	}
 	hash, err := utils.HashPassword(req.Password)
 	if err != nil {
 		return err
@@ -220,6 +229,10 @@ func (s *userService) ChangePassword(userID uint, req *dto.ChangePasswordRequest
 
 	if !utils.CheckPassword(req.OldPassword, user.Password) {
 		return errors.New("旧密码错误")
+	}
+
+	if err := validatePasswordStrength(req.NewPassword); err != nil {
+		return err
 	}
 
 	hash, err := utils.HashPassword(req.NewPassword)
@@ -243,4 +256,39 @@ func (s *userService) revokeUserTokens(userID uint) {
 	// 同时设置一个标记，使得该用户的所有旧 access token 失效
 	_ = cache.Set(ctx, "user:token_revoked:"+fmt.Sprintf("%d", userID), "1",
 		time.Duration(config.Cfg.JWT.AccessExpire)*time.Second)
+}
+
+// validatePasswordStrength 校验密码强度：至少包含大写字母、小写字母、数字中的两种
+func validatePasswordStrength(password string) error {
+	if len(password) < 6 {
+		return errors.New("密码长度不能少于6位")
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, ch := range password {
+		switch {
+		case unicode.IsUpper(ch):
+			hasUpper = true
+		case unicode.IsLower(ch):
+			hasLower = true
+		case unicode.IsDigit(ch):
+			hasDigit = true
+		}
+	}
+	types := 0
+	if hasUpper {
+		types++
+	}
+	if hasLower {
+		types++
+	}
+	if hasDigit {
+		types++
+	}
+	if types < 2 {
+		return errors.New("密码必须包含大写字母、小写字母、数字中的至少两种")
+	}
+	if strings.ContainsAny(password, " \t\n\r") {
+		return errors.New("密码不能包含空格")
+	}
+	return nil
 }

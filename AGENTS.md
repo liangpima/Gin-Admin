@@ -182,6 +182,7 @@ userRepository.FindByUsername(username)
 
 - 优先调用已有 Service 获取数据，禁止重复实现
 - 新模块应依赖现有 Service，而非直接访问其 Repository
+- Service 间互相调用通过接口，禁止直接 `NewXxxRepository()` 绕过 Service 层
 
 ### 规则10: 生成代码前先分析项目现有结构
 
@@ -301,6 +302,7 @@ web/src/
 - DTO 使用 `binding` tag 进行参数校验
 - Model 使用 `gorm` tag 定义数据库字段
 - JSON 字段使用小驼峰命名
+- 日志统一使用 `internal/logger` 的 Zap 实例，禁止使用 `log.Printf`
 - 前端 API 文件与后端路由模块一一对应
 - 前端组件优先使用 Element Plus 内置组件
 
@@ -343,31 +345,33 @@ make deps                      # 整理依赖
 - Access Token 有效期 2 小时，Refresh Token 7 天
 - 登录限频：同一 IP 5 分钟内最多 5 次失败，超限锁定 15 分钟
 - 密码修改/用户禁用后自动吊销所有 Token（Redis 黑名单）
+- 退出登录时将 Access Token 加入 Redis 黑名单（`cache.RevokeToken`），Auth 中间件检查 `IsTokenRevoked`
 - Casbin RBAC 中间件已挂载，空策略时跳过检查（开发兼容）
+
+### 密码安全
+
+- 密码使用 bcrypt 哈希（`bcrypt.DefaultCost`）
+- 密码强度校验：至少包含大写字母、小写字母、数字中的两种，禁止包含空格
+- 适用场景：用户创建（`Create`）、密码重置（`ResetPassword`）、密码修改（`ChangePassword`）
 
 ### 多租户隔离
 
 - 所有 Repository 查询必须通过 `common.TenantScope(db, tenantID)` 过滤
 - tenant_id 仅从 JWT claims 获取，禁止从 Header/Query 参数读取
+- 关联表操作（如 `ReplaceTags`、`FindTagIDsByMemberID`）也必须使用 `TenantScope`
 - 支付回调等外部接口使用 `FindByXxxForNotify()`（无 tenant 过滤）
 
 ### 文件上传
 
 - 扩展名白名单校验（jpg/png/gif/bmp/svg/webp/mp4/mov/mp3/pdf/doc/xls/ppt/zip 等）
 - 危险扩展名拦截（php/exe/sh/bat/js/vbs 等）
-- 文件大小限制：上传 10MB，证书 2MB
+- 文件大小限制从 `config.yaml` 的 `upload.max_size` 读取（单位 MB），默认 10MB
 
 ### CORS 配置
 
 - 生产环境必须在 `config.yaml` 的 `cors.allow_origins` 配置白名单
 - 开发环境（mode: debug）允许所有来源
 - `AllowCredentials: true` 必须配合明确的 Origin 白名单
-
-### 文件上传
-
-- 扩展名白名单校验（jpg/png/gif/bmp/svg/webp/mp4/mov/mp3/pdf/doc/xls/ppt/zip 等）
-- 危险扩展名拦截（php/exe/sh/bat/js/vbs 等）
-- 文件大小限制：上传 10MB，证书 2MB
 
 ### 支付安全
 
@@ -375,12 +379,6 @@ make deps                      # 整理依赖
 - 支付宝回调验签已实现
 - 回调金额校验（防止金额篡改）
 - returnURL 开放重定向防护（协议和主机名校验）
-
-### CORS 配置
-
-- 生产环境必须在 `config.yaml` 的 `cors.allow_origins` 配置白名单
-- 开发环境（mode: debug）允许所有来源
-- `AllowCredentials: true` 必须配合明确的 Origin 白名单
 
 ### 敏感配置
 

@@ -16,6 +16,7 @@ type RoleService interface {
 	Update(req *dto.UpdateRoleRequest, operatorID uint) error
 	Delete(id uint) error
 	FindByID(id uint) (interface{}, error)
+	FindByIDs(ids []uint) ([]model.SysRole, error)
 	FindList(req *dto.RoleListRequest) ([]interface{}, int64, error)
 	UpdateStatus(req *dto.StatusRequest) error
 	FindAll() ([]model.SysRole, error)
@@ -100,6 +101,10 @@ func (s *roleService) Delete(id uint) error {
 
 func (s *roleService) FindByID(id uint) (interface{}, error) {
 	return s.roleRepo.FindByID(id)
+}
+
+func (s *roleService) FindByIDs(ids []uint) ([]model.SysRole, error) {
+	return s.roleRepo.FindByIDs(ids)
 }
 
 func (s *roleService) FindList(req *dto.RoleListRequest) ([]interface{}, int64, error) {

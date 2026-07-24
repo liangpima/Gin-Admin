@@ -8,7 +8,8 @@ import (
 
 	"go-admin/internal/module/payment/model"
 	paymentRepo "go-admin/internal/module/payment/repository"
-	systemRepo "go-admin/internal/module/system/repository"
+	systemModel "go-admin/internal/module/system/model"
+	systemService "go-admin/internal/module/system/service"
 )
 
 type PayNotifyResult struct {
@@ -260,14 +261,16 @@ func (s *PaymentService) RefundOrderWithPayInfo(tenantID uint, orderNo string, r
 }
 
 func loadPayConfig() map[string]string {
-	configRepo := systemRepo.NewConfigRepository()
-	configs, _ := configRepo.FindByKeyPrefix("pay.")
+	configService := systemService.NewConfigService()
+	results, _ := configService.FindByPrefix("pay.")
 
 	cfgMap := make(map[string]string)
-	for _, c := range configs {
-		key := c.ConfigKey
-		if len(key) > 4 && key[:4] == "pay." {
-			cfgMap[key[4:]] = c.Value
+	for _, r := range results {
+		if cfg, ok := r.(systemModel.SysConfig); ok {
+			key := cfg.ConfigKey
+			if len(key) > 4 && key[:4] == "pay." {
+				cfgMap[key[4:]] = cfg.Value
+			}
 		}
 	}
 	return cfgMap

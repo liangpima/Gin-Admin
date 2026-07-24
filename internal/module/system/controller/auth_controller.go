@@ -14,6 +14,7 @@ import (
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
 	"go-admin/internal/module/system/service"
+	"go-admin/pkg/auth"
 
 	"github.com/gin-gonic/gin"
 )
@@ -129,9 +130,16 @@ func (ctl *AuthController) RefreshToken(c *gin.Context) {
 func (ctl *AuthController) Logout(c *gin.Context) {
 	token := c.GetHeader("Authorization")
 	if token != "" && len(token) > 7 {
-		token = token[7:]
+		accessToken := token[7:]
+		// 将 access token 加入黑名单，剩余有效时间作为过期时间
+		if claims, err := auth.ParseToken(accessToken); err == nil && claims.ExpiresAt != nil {
+			ttl := time.Until(claims.ExpiresAt.Time)
+			if ttl > 0 {
+				_ = cache.RevokeToken(context.Background(), accessToken, ttl)
+			}
+		}
+		_ = ctl.authService.Logout(token[7:])
 	}
-	_ = ctl.authService.Logout(token)
 	common.Success(c, nil)
 }
 

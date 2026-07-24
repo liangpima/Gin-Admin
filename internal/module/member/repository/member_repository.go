@@ -17,9 +17,9 @@ type MemberRepository interface {
 	FindByWechatOpenid(tenantID uint, openid string) (*model.Member, error)
 	FindList(tenantID uint, phone, nickname string, levelID uint, status int8, page, pageSize int) ([]model.Member, int64, error)
 	UpdateStatus(tenantID, id uint, status int8) error
-	ReplaceTags(memberID uint, tagIDs []uint) error
-	FindTagIDsByMemberID(memberID uint) ([]uint, error)
-	UpdatePoints(memberID uint, points int64) error
+	ReplaceTags(tenantID, memberID uint, tagIDs []uint) error
+	FindTagIDsByMemberID(tenantID, memberID uint) ([]uint, error)
+	UpdatePoints(tenantID, memberID uint, points int64) error
 	FindMaxMemberNo(tenantID uint) (string, error)
 }
 
@@ -87,8 +87,8 @@ func (r *memberRepository) UpdateStatus(tenantID, id uint, status int8) error {
 	return common.TenantScope(database.DB, tenantID).Model(&model.Member{}).Where("id = ?", id).Update("status", status).Error
 }
 
-func (r *memberRepository) ReplaceTags(memberID uint, tagIDs []uint) error {
-	return database.DB.Transaction(func(tx *gorm.DB) error {
+func (r *memberRepository) ReplaceTags(tenantID, memberID uint, tagIDs []uint) error {
+	return common.TenantScope(database.DB, tenantID).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("member_id = ?", memberID).Delete(&model.MemberTagRel{}).Error; err != nil {
 			return err
 		}
@@ -103,16 +103,16 @@ func (r *memberRepository) ReplaceTags(memberID uint, tagIDs []uint) error {
 	})
 }
 
-func (r *memberRepository) FindTagIDsByMemberID(memberID uint) ([]uint, error) {
+func (r *memberRepository) FindTagIDsByMemberID(tenantID, memberID uint) ([]uint, error) {
 	var tagIDs []uint
-	err := database.DB.Model(&model.MemberTagRel{}).
+	err := common.TenantScope(database.DB, tenantID).Model(&model.MemberTagRel{}).
 		Where("member_id = ?", memberID).
 		Pluck("tag_id", &tagIDs).Error
 	return tagIDs, err
 }
 
-func (r *memberRepository) UpdatePoints(memberID uint, points int64) error {
-	return database.DB.Model(&model.Member{}).Where("id = ?", memberID).UpdateColumn("points", points).Error
+func (r *memberRepository) UpdatePoints(tenantID, memberID uint, points int64) error {
+	return common.TenantScope(database.DB, tenantID).Model(&model.Member{}).Where("id = ?", memberID).UpdateColumn("points", points).Error
 }
 
 func (r *memberRepository) FindMaxMemberNo(tenantID uint) (string, error) {

@@ -3,6 +3,7 @@ package controller
 import (
 	"net/url"
 
+	"go-admin/config"
 	"go-admin/internal/common"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/service"
@@ -34,7 +35,10 @@ func (ctl *FileController) Upload(c *gin.Context) {
 		return
 	}
 
-	maxSize := int64(10 * 1024 * 1024)
+	maxSize := int64(config.Cfg.Upload.MaxSize) * 1024 * 1024
+	if maxSize <= 0 {
+		maxSize = 10 * 1024 * 1024 // 默认 10MB
+	}
 	if file.Size > maxSize {
 		common.Error(c, common.CodeFileTooLarge, "文件大小不能超过10MB")
 		return

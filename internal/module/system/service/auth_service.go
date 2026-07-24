@@ -26,16 +26,16 @@ type AuthService interface {
 }
 
 type authService struct {
-	userRepo repository.UserRepository
-	roleRepo repository.RoleRepository
-	menuRepo repository.MenuRepository
+	userRepo    repository.UserRepository
+	roleService RoleService
+	menuRepo    repository.MenuRepository
 }
 
 func NewAuthService() AuthService {
 	return &authService{
-		userRepo: repository.NewUserRepository(),
-		roleRepo: repository.NewRoleRepository(),
-		menuRepo: repository.NewMenuRepository(),
+		userRepo:    repository.NewUserRepository(),
+		roleService: NewRoleService(),
+		menuRepo:    repository.NewMenuRepository(),
 	}
 }
 
@@ -133,7 +133,7 @@ func (s *authService) GetUserInfo(userID uint) (*vo.UserInfoResponse, error) {
 
 	roles := make([]vo.RoleInfo, 0, len(roleIDs))
 	if len(roleIDs) > 0 {
-		userRoles, err := s.roleRepo.FindByIDs(roleIDs)
+		userRoles, err := s.roleService.FindByIDs(roleIDs)
 		if err == nil {
 			for _, r := range userRoles {
 				roles = append(roles, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})

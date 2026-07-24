@@ -88,7 +88,7 @@ func (s *memberService) Create(req *dto.CreateMemberRequest, operatorID, tenantI
 	}
 
 	if len(req.TagIds) > 0 {
-		_ = s.memberRepo.ReplaceTags(member.ID, req.TagIds)
+		_ = s.memberRepo.ReplaceTags(tenantID, member.ID, req.TagIds)
 	}
 
 	return nil
@@ -126,7 +126,7 @@ func (s *memberService) Update(req *dto.UpdateMemberRequest, operatorID, tenantI
 	}
 
 	if req.TagIds != nil {
-		_ = s.memberRepo.ReplaceTags(member.ID, req.TagIds)
+		_ = s.memberRepo.ReplaceTags(tenantID, member.ID, req.TagIds)
 	}
 
 	return nil
@@ -165,7 +165,7 @@ func (s *memberService) FindList(tenantID uint, req *dto.MemberListRequest) ([]i
 
 	result := make([]interface{}, len(members))
 	for i, m := range members {
-		tagIDs, _ := s.memberRepo.FindTagIDsByMemberID(m.ID)
+		tagIDs, _ := s.memberRepo.FindTagIDsByMemberID(tenantID, m.ID)
 		tags, _ := s.tagRepo.FindByIDs(tagIDs)
 		result[i] = memberWithTag{Member: m, Tags: tags}
 	}
@@ -221,5 +221,5 @@ func (s *memberService) UpdateTags(tenantID uint, req *dto.UpdateMemberTagsReque
 	if err != nil {
 		return errors.New("会员不存在")
 	}
-	return s.memberRepo.ReplaceTags(req.ID, req.TagIds)
+	return s.memberRepo.ReplaceTags(tenantID, req.ID, req.TagIds)
 }
