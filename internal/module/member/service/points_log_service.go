@@ -7,7 +7,7 @@ import (
 )
 
 type PointsLogService interface {
-	FindList(req *dto.PointsLogListRequest) ([]model.PointsLog, int64, error)
+	FindList(tenantID uint, req *dto.PointsLogListRequest) ([]model.PointsLog, int64, error)
 }
 
 type pointsLogService struct {
@@ -20,12 +20,12 @@ func NewPointsLogService() PointsLogService {
 	}
 }
 
-func (s *pointsLogService) FindList(req *dto.PointsLogListRequest) ([]model.PointsLog, int64, error) {
+func (s *pointsLogService) FindList(tenantID uint, req *dto.PointsLogListRequest) ([]model.PointsLog, int64, error) {
 	if req.Page < 1 {
 		req.Page = 1
 	}
 	if req.PageSize < 1 || req.PageSize > 100 {
 		req.PageSize = 10
 	}
-	return s.pointsLogRepo.FindList(req.MemberID, req.Type, req.Page, req.PageSize)
+	return s.pointsLogRepo.FindList(tenantID, req.MemberID, req.Type, req.Page, req.PageSize)
 }

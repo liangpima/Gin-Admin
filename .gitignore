@@ -57,3 +57,7 @@ tmp/
 temp/
 *.pid
 *.bak
+
+# AI 工具工作目录（本地记忆与缓存，不属于项目代码）
+.workbuddy-ai/
+.mimocode/

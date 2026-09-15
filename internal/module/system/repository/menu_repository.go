@@ -60,6 +60,12 @@ func (r *menuRepository) Update(menu *model.SysMenu) error {
 	return r.db.Model(menu).Select("ParentID", "Name", "Path", "Component", "Redirect", "Icon", "Title", "Type", "Permission", "Sort", "Visible", "Status", "IsExternal", "IsCache", "UpdateBy", "Remark").Updates(menu).Error
 }
 
+// Delete 软删除菜单，并清理角色-菜单关联，避免留下孤儿记录
 func (r *menuRepository) Delete(id uint) error {
-	return r.db.Delete(&model.SysMenu{}, id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("menu_id = ?", id).Delete(&model.SysRoleMenu{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.SysMenu{}, id).Error
+	})
 }

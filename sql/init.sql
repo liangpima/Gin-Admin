@@ -189,22 +189,19 @@ CREATE TABLE IF NOT EXISTS `sys_operation_log` (
   `tenant_id` bigint unsigned DEFAULT 0 COMMENT '租户ID',
   `title` varchar(64) DEFAULT '' COMMENT '模块标题',
   `action` varchar(64) DEFAULT '' COMMENT '操作类型',
-  `method` varchar(200) DEFAULT '' COMMENT '请求方法',
   `request_method` varchar(10) DEFAULT '' COMMENT 'HTTP方法',
   `request_url` varchar(500) DEFAULT '' COMMENT '请求URL',
-  `request_param` text COMMENT '请求参数',
-  `response_result` text COMMENT '返回结果',
+  `request_param` text COMMENT '请求参数（敏感字段已脱敏）',
   `status` tinyint DEFAULT 1 COMMENT '状态 0失败 1成功',
   `error_msg` text COMMENT '错误消息',
   `ip` varchar(128) DEFAULT '' COMMENT '操作IP',
-  `location` varchar(255) DEFAULT '' COMMENT '操作地点',
   `user_agent` varchar(500) DEFAULT '' COMMENT '浏览器UA',
   `operator_id` bigint unsigned DEFAULT 0 COMMENT '操作人ID',
   `operator_name` varchar(64) DEFAULT '' COMMENT '操作人名称',
   `cost_time` bigint DEFAULT 0 COMMENT '耗时(ms)',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  KEY `idx_tenant_id` (`tenant_id`),
+  KEY `idx_tenant_id` (`tenant_id`, `id`),
   KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
 
@@ -214,14 +211,13 @@ CREATE TABLE IF NOT EXISTS `sys_login_log` (
   `tenant_id` bigint unsigned DEFAULT 0 COMMENT '租户ID',
   `username` varchar(64) DEFAULT '' COMMENT '用户名',
   `ip` varchar(128) DEFAULT '' COMMENT '登录IP',
-  `location` varchar(255) DEFAULT '' COMMENT '登录地点',
   `browser` varchar(128) DEFAULT '' COMMENT '浏览器',
   `os` varchar(128) DEFAULT '' COMMENT '操作系统',
   `status` tinyint DEFAULT 1 COMMENT '状态 0失败 1成功',
   `msg` varchar(255) DEFAULT '' COMMENT '消息',
   `login_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
   PRIMARY KEY (`id`),
-  KEY `idx_tenant_id` (`tenant_id`),
+  KEY `idx_tenant_id` (`tenant_id`, `id`),
   KEY `idx_login_time` (`login_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录日志表';
 
@@ -302,6 +298,21 @@ CREATE TABLE IF NOT EXISTS `sys_user_post` (
   `post_id` bigint unsigned NOT NULL COMMENT '岗位ID',
   PRIMARY KEY (`user_id`, `post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户岗位关联表';
+
+-- Casbin 权限策略表
+-- v0=角色code  v1=域(固定 default)  v2=API路径(* 为通配)  v3=HTTP方法(* 为通配)
+CREATE TABLE IF NOT EXISTS `casbin_rule` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ptype` varchar(100) DEFAULT '' COMMENT '策略类型，p=权限策略',
+  `v0` varchar(100) DEFAULT '' COMMENT '角色code',
+  `v1` varchar(100) DEFAULT '' COMMENT '域，固定 default',
+  `v2` varchar(100) DEFAULT '' COMMENT 'API路径，* 表示全部',
+  `v3` varchar(100) DEFAULT '' COMMENT 'HTTP方法，* 表示全部',
+  `v4` varchar(100) DEFAULT '',
+  `v5` varchar(100) DEFAULT '',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_casbin_rule` (`ptype`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Casbin权限策略表';
 
 -- ============================================================
 -- 二、支付与会员表
@@ -464,6 +475,11 @@ INSERT IGNORE INTO `sys_user` (`id`, `username`, `password`, `nickname`, `status
 -- 管理员角色关联
 INSERT IGNORE INTO `sys_user_role` (`user_id`, `role_id`) VALUES (1, 1);
 
+-- Casbin 权限策略
+-- 超级管理员（admin 角色）放行全部接口；其余角色需按需追加策略，例如：
+--   INSERT INTO casbin_rule (ptype,v0,v1,v2,v3) VALUES ('p','editor','default','/api/v1/system/user/list','GET');
+INSERT IGNORE INTO `casbin_rule` (`ptype`, `v0`, `v1`, `v2`, `v3`) VALUES ('p', 'admin', 'default', '*', '*');
+
 -- 菜单数据
 INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `name`, `path`, `component`, `icon`, `title`, `type`, `permission`, `sort`, `visible`, `status`, `is_cache`, `is_external`, `create_by`, `update_by`) VALUES
 -- 权限管理
@@ -500,7 +516,38 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `name`, `path`, `component`, `
 (102, 2, 'UserDelete', '', '', '', '删除', 2, 'system:user:delete', 3, 1, 1, 1, 0, 1, 1),
 (200, 3, 'RoleAdd', '', '', '', '新增', 2, 'system:role:add', 1, 1, 1, 1, 0, 1, 1),
 (201, 3, 'RoleEdit', '', '', '', '编辑', 2, 'system:role:edit', 2, 1, 1, 1, 0, 1, 1),
-(202, 3, 'RoleDelete', '', '', '', '删除', 2, 'system:role:delete', 3, 1, 1, 1, 0, 1, 1);
+(202, 3, 'RoleDelete', '', '', '', '删除', 2, 'system:role:delete', 3, 1, 1, 1, 0, 1, 1),
+-- 按钮权限（其余模块）
+(300, 4, 'MenuAdd', '', '', '', '新增', 2, 'system:menu:add', 1, 1, 1, 1, 0, 1, 1),
+(301, 4, 'MenuEdit', '', '', '', '编辑', 2, 'system:menu:edit', 2, 1, 1, 1, 0, 1, 1),
+(302, 4, 'MenuDelete', '', '', '', '删除', 2, 'system:menu:delete', 3, 1, 1, 1, 0, 1, 1),
+(310, 5, 'DeptAdd', '', '', '', '新增', 2, 'system:dept:add', 1, 1, 1, 1, 0, 1, 1),
+(311, 5, 'DeptEdit', '', '', '', '编辑', 2, 'system:dept:edit', 2, 1, 1, 1, 0, 1, 1),
+(312, 5, 'DeptDelete', '', '', '', '删除', 2, 'system:dept:delete', 3, 1, 1, 1, 0, 1, 1),
+(320, 6, 'PostAdd', '', '', '', '新增', 2, 'system:post:add', 1, 1, 1, 1, 0, 1, 1),
+(321, 6, 'PostEdit', '', '', '', '编辑', 2, 'system:post:edit', 2, 1, 1, 1, 0, 1, 1),
+(322, 6, 'PostDelete', '', '', '', '删除', 2, 'system:post:delete', 3, 1, 1, 1, 0, 1, 1),
+(330, 8, 'DictAdd', '', '', '', '新增', 2, 'system:dict:add', 1, 1, 1, 1, 0, 1, 1),
+(331, 8, 'DictDelete', '', '', '', '删除', 2, 'system:dict:delete', 2, 1, 1, 1, 0, 1, 1),
+(340, 7, 'ConfigAdd', '', '', '', '新增', 2, 'system:config:add', 1, 1, 1, 1, 0, 1, 1),
+(341, 7, 'ConfigEdit', '', '', '', '编辑', 2, 'system:config:edit', 2, 1, 1, 1, 0, 1, 1),
+(342, 7, 'ConfigDelete', '', '', '', '删除', 2, 'system:config:delete', 3, 1, 1, 1, 0, 1, 1),
+(350, 9, 'LogDelete', '', '', '', '清空', 2, 'system:log:delete', 1, 1, 1, 1, 0, 1, 1),
+(360, 15, 'FileDelete', '', '', '', '删除', 2, 'system:file:delete', 1, 1, 1, 1, 0, 1, 1),
+(370, 150, 'AgreementAdd', '', '', '', '新增', 2, 'system:agreement:add', 1, 1, 1, 1, 0, 1, 1),
+(371, 150, 'AgreementEdit', '', '', '', '编辑', 2, 'system:agreement:edit', 2, 1, 1, 1, 0, 1, 1),
+(372, 150, 'AgreementDelete', '', '', '', '删除', 2, 'system:agreement:delete', 3, 1, 1, 1, 0, 1, 1),
+(400, 21, 'MemberAdd', '', '', '', '新增', 2, 'member:add', 1, 1, 1, 1, 0, 1, 1),
+(401, 21, 'MemberEdit', '', '', '', '编辑', 2, 'member:edit', 2, 1, 1, 1, 0, 1, 1),
+(402, 21, 'MemberDelete', '', '', '', '删除', 2, 'member:delete', 3, 1, 1, 1, 0, 1, 1),
+(410, 22, 'MemberLevelAdd', '', '', '', '新增', 2, 'member:level:add', 1, 1, 1, 1, 0, 1, 1),
+(411, 22, 'MemberLevelEdit', '', '', '', '编辑', 2, 'member:level:edit', 2, 1, 1, 1, 0, 1, 1),
+(412, 22, 'MemberLevelDelete', '', '', '', '删除', 2, 'member:level:delete', 3, 1, 1, 1, 0, 1, 1),
+(420, 23, 'MemberTagAdd', '', '', '', '新增', 2, 'member:tag:add', 1, 1, 1, 1, 0, 1, 1),
+(421, 23, 'MemberTagEdit', '', '', '', '编辑', 2, 'member:tag:edit', 2, 1, 1, 1, 0, 1, 1),
+(422, 23, 'MemberTagDelete', '', '', '', '删除', 2, 'member:tag:delete', 3, 1, 1, 1, 0, 1, 1),
+(430, 17, 'PayOrderRefund', '', '', '', '退款', 2, 'payment:order:refund', 1, 1, 1, 1, 0, 1, 1),
+(431, 17, 'PayOrderClose', '', '', '', '关闭', 2, 'payment:order:close', 2, 1, 1, 1, 0, 1, 1);
 
 -- 超级管理员菜单权限
 INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
@@ -508,7 +555,12 @@ INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
 (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 150),
 (1, 16), (1, 17), (1, 18),
 (1, 20), (1, 21), (1, 22), (1, 23), (1, 24),
-(1, 100), (1, 101), (1, 102), (1, 200), (1, 201), (1, 202);
+(1, 100), (1, 101), (1, 102), (1, 200), (1, 201), (1, 202),
+(1, 300), (1, 301), (1, 302), (1, 310), (1, 311), (1, 312),
+(1, 320), (1, 321), (1, 322), (1, 330), (1, 331), (1, 340),
+(1, 341), (1, 342), (1, 350), (1, 360), (1, 370), (1, 371),
+(1, 372), (1, 400), (1, 401), (1, 402), (1, 410), (1, 411),
+(1, 412), (1, 420), (1, 421), (1, 422), (1, 430), (1, 431);
 
 -- 系统配置（站点设置、支付、OSS、短信）
 INSERT IGNORE INTO `sys_config` (`name`, `config_key`, `value`, `type`, `create_by`, `update_by`, `created_at`, `updated_at`) VALUES
@@ -527,6 +579,7 @@ INSERT IGNORE INTO `sys_config` (`name`, `config_key`, `value`, `type`, `create_
 ('微信商户号', 'pay.wechat_mch_id', '', 1, 1, 1, NOW(), NOW()),
 ('微信密钥', 'pay.wechat_key', '', 1, 1, 1, NOW(), NOW()),
 ('微信证书序列号', 'pay.wechat_serial_no', '', 1, 1, 1, NOW(), NOW()),
+('微信APIv3密钥', 'pay.wechat_apiv3_key', '', 1, 1, 1, NOW(), NOW()),
 ('微信PEM证书', 'pay.wechat_cert_pem', '', 1, 1, 1, NOW(), NOW()),
 ('微信证书密钥', 'pay.wechat_key_pem', '', 1, 1, 1, NOW(), NOW()),
 ('支付宝AppID', 'pay.alipay_app_id', '', 1, 1, 1, NOW(), NOW()),

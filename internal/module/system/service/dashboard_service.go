@@ -6,7 +6,7 @@ import (
 )
 
 type DashboardService interface {
-	GetStats() (*model.DashboardStats, error)
+	GetStats(tenantID uint) (*model.DashboardStats, error)
 }
 
 type dashboardService struct {
@@ -19,6 +19,6 @@ func NewDashboardService() DashboardService {
 	}
 }
 
-func (s *dashboardService) GetStats() (*model.DashboardStats, error) {
-	return s.dashboardRepo.GetStats()
+func (s *dashboardService) GetStats(tenantID uint) (*model.DashboardStats, error) {
+	return s.dashboardRepo.GetStats(tenantID)
 }

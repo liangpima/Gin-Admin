@@ -10,11 +10,11 @@ import (
 )
 
 type MemberTagService interface {
-	Create(req *dto.CreateMemberTagRequest, operatorID uint) error
-	Update(req *dto.UpdateMemberTagRequest, operatorID uint) error
-	Delete(id uint) error
-	FindList(req *dto.MemberTagListRequest) ([]model.MemberTag, int64, error)
-	FindAll() ([]model.MemberTag, error)
+	Create(req *dto.CreateMemberTagRequest, operatorID, tenantID uint) error
+	Update(req *dto.UpdateMemberTagRequest, operatorID, tenantID uint) error
+	Delete(tenantID, id uint) error
+	FindList(tenantID uint, req *dto.MemberTagListRequest) ([]model.MemberTag, int64, error)
+	FindAll(tenantID uint) ([]model.MemberTag, error)
 }
 
 type memberTagService struct {
@@ -27,13 +27,14 @@ func NewMemberTagService() MemberTagService {
 	}
 }
 
-func (s *memberTagService) Create(req *dto.CreateMemberTagRequest, operatorID uint) error {
+func (s *memberTagService) Create(req *dto.CreateMemberTagRequest, operatorID, tenantID uint) error {
 	tag := &model.MemberTag{
 		TenantBaseModel: common.TenantBaseModel{
 			BaseModel: common.BaseModel{
 				CreateBy: operatorID,
 				UpdateBy: operatorID,
 			},
+			TenantID: tenantID,
 		},
 		Name:   req.Name,
 		Color:  req.Color,
@@ -43,8 +44,8 @@ func (s *memberTagService) Create(req *dto.CreateMemberTagRequest, operatorID ui
 	return s.tagRepo.Create(tag)
 }
 
-func (s *memberTagService) Update(req *dto.UpdateMemberTagRequest, operatorID uint) error {
-	tag, err := s.tagRepo.FindByID(req.ID)
+func (s *memberTagService) Update(req *dto.UpdateMemberTagRequest, operatorID, tenantID uint) error {
+	tag, err := s.tagRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		return errors.New("标签不存在")
 	}
@@ -53,23 +54,23 @@ func (s *memberTagService) Update(req *dto.UpdateMemberTagRequest, operatorID ui
 	tag.Sort = req.Sort
 	tag.Status = req.Status
 	tag.UpdateBy = operatorID
-	return s.tagRepo.Update(tag)
+	return s.tagRepo.Update(tenantID, tag)
 }
 
-func (s *memberTagService) Delete(id uint) error {
-	return s.tagRepo.Delete(id)
+func (s *memberTagService) Delete(tenantID, id uint) error {
+	return s.tagRepo.Delete(tenantID, id)
 }
 
-func (s *memberTagService) FindList(req *dto.MemberTagListRequest) ([]model.MemberTag, int64, error) {
+func (s *memberTagService) FindList(tenantID uint, req *dto.MemberTagListRequest) ([]model.MemberTag, int64, error) {
 	if req.Page < 1 {
 		req.Page = 1
 	}
 	if req.PageSize < 1 || req.PageSize > 100 {
 		req.PageSize = 10
 	}
-	return s.tagRepo.FindList(req.Name, req.Page, req.PageSize)
+	return s.tagRepo.FindList(tenantID, req.Name, req.Page, req.PageSize)
 }
 
-func (s *memberTagService) FindAll() ([]model.MemberTag, error) {
-	return s.tagRepo.FindAll()
+func (s *memberTagService) FindAll(tenantID uint) ([]model.MemberTag, error) {
+	return s.tagRepo.FindAll(tenantID)
 }

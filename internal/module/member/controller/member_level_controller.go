@@ -31,7 +31,8 @@ func (ctl *MemberLevelController) Create(c *gin.Context) {
 		return
 	}
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.levelService.Create(&req, operatorID); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.levelService.Create(&req, operatorID, tenantID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -53,7 +54,8 @@ func (ctl *MemberLevelController) Update(c *gin.Context) {
 		return
 	}
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.levelService.Update(&req, operatorID); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.levelService.Update(&req, operatorID, tenantID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -73,7 +75,8 @@ func (ctl *MemberLevelController) Delete(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, "参数错误")
 		return
 	}
-	if err := ctl.levelService.Delete(id); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.levelService.Delete(tenantID, id); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -95,7 +98,8 @@ func (ctl *MemberLevelController) FindList(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
-	list, total, err := ctl.levelService.FindList(&req)
+	tenantID := common.GetTenantID(c)
+	list, total, err := ctl.levelService.FindList(tenantID, &req)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return

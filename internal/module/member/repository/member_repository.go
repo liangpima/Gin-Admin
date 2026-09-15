@@ -37,8 +37,35 @@ func (r *memberRepository) Update(member *model.Member) error {
 	return database.DB.Save(member).Error
 }
 
+// Delete 软删除会员。删除前改写 phone / member_no 释放唯一索引占用，
+// 否则同一手机号或会员编号将无法再次创建。
 func (r *memberRepository) Delete(tenantID, id uint) error {
-	return common.TenantScope(database.DB, tenantID).Delete(&model.Member{}, id).Error
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var member model.Member
+		if err := common.TenantScope(tx, tenantID).First(&member, id).Error; err != nil {
+			return err
+		}
+
+		updates := make(map[string]interface{}, 2)
+		if member.Phone != "" {
+			updates["phone"] = common.FreedUniqueValue(member.Phone, member.ID, 20)
+		}
+		if member.MemberNo != "" {
+			updates["member_no"] = common.FreedUniqueValue(member.MemberNo, member.ID, 32)
+		}
+		if len(updates) > 0 {
+			if err := tx.Model(&model.Member{}).Where("id = ?", member.ID).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+
+		// 清理关联表，避免留下孤儿记录
+		if err := tx.Where("member_id = ?", member.ID).Delete(&model.MemberTagRel{}).Error; err != nil {
+			return err
+		}
+
+		return common.TenantScope(tx, tenantID).Delete(&model.Member{}, id).Error
+	})
 }
 
 func (r *memberRepository) FindByID(tenantID, id uint) (*model.Member, error) {

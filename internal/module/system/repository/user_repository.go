@@ -21,6 +21,7 @@ type UserRepository interface {
 	ReplaceRoles(userID uint, roleIDs []uint) error
 	ReplacePosts(userID uint, postIDs []uint) error
 	FindRoleIDsByUserID(userID uint) ([]uint, error)
+	FindRoleIDsByUserIDs(userIDs []uint) (map[uint][]uint, error)
 	CountByUsername(tenantID uint, username string, excludeID uint) int64
 }
 
@@ -86,8 +87,31 @@ func (r *userRepository) Update(user *model.SysUser) error {
 	return r.db.Model(user).Select("Username", "Nickname", "Phone", "Email", "Avatar", "Password", "Status", "DeptID", "Remark", "UpdateBy").Updates(user).Error
 }
 
+// Delete 软删除用户，并清理其角色/岗位关联。
+//
+// 删除前改写 username 释放唯一索引占用，否则同名用户将无法再次创建
+// （唯一索引不区分记录是否已软删除）。
 func (r *userRepository) Delete(tenantID, id uint) error {
-	return common.TenantScope(r.db, tenantID).Delete(&model.SysUser{}, id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.SysUser
+		if err := common.TenantScope(tx, tenantID).First(&user, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.SysUser{}).Where("id = ?", user.ID).
+			Update("username", common.FreedUniqueValue(user.Username, user.ID, 64)).Error; err != nil {
+			return err
+		}
+
+		// 清理关联表，避免留下孤儿记录
+		if err := tx.Where("user_id = ?", user.ID).Delete(&model.SysUserRole{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", user.ID).Delete(&model.SysUserPost{}).Error; err != nil {
+			return err
+		}
+
+		return common.TenantScope(tx, tenantID).Delete(&model.SysUser{}, id).Error
+	})
 }
 
 func (r *userRepository) UpdateStatus(tenantID, id uint, status int8) error {
@@ -114,12 +138,18 @@ func (r *userRepository) ReplaceRoles(userID uint, roleIDs []uint) error {
 }
 
 func (r *userRepository) ReplacePosts(userID uint, postIDs []uint) error {
-	r.db.Where("user_id = ?", userID).Delete(&model.SysUserPost{})
-	for _, postID := range postIDs {
-		up := model.SysUserPost{UserID: userID, PostID: postID}
-		r.db.Create(&up)
-	}
-	return nil
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&model.SysUserPost{}).Error; err != nil {
+			return err
+		}
+		for _, postID := range postIDs {
+			up := model.SysUserPost{UserID: userID, PostID: postID}
+			if err := tx.Create(&up).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *userRepository) FindRoleIDsByUserID(userID uint) ([]uint, error) {
@@ -128,6 +158,24 @@ func (r *userRepository) FindRoleIDsByUserID(userID uint) ([]uint, error) {
 		Where("user_id = ?", userID).
 		Pluck("role_id", &roleIDs).Error
 	return roleIDs, err
+}
+
+// FindRoleIDsByUserIDs 批量查询多个用户的角色ID，返回 userID -> roleIDs 映射。
+// 用于列表场景一次性取回关联关系，避免逐个用户查询（N+1）。
+func (r *userRepository) FindRoleIDsByUserIDs(userIDs []uint) (map[uint][]uint, error) {
+	result := make(map[uint][]uint, len(userIDs))
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+
+	var rels []model.SysUserRole
+	if err := r.db.Where("user_id IN ?", userIDs).Find(&rels).Error; err != nil {
+		return nil, err
+	}
+	for _, rel := range rels {
+		result[rel.UserID] = append(result[rel.UserID], rel.RoleID)
+	}
+	return result, nil
 }
 
 func (r *userRepository) CountByUsername(tenantID uint, username string, excludeID uint) int64 {

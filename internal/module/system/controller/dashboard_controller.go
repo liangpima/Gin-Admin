@@ -23,7 +23,8 @@ func NewDashboardController() *DashboardController {
 // @Success 200 {object} common.Response{data=model.DashboardStats}
 // @Router /api/v1/dashboard/stats [get]
 func (ctl *DashboardController) GetStats(c *gin.Context) {
-	stats, err := ctl.dashboardService.GetStats()
+	tenantID := common.GetTenantID(c)
+	stats, err := ctl.dashboardService.GetStats(tenantID)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return

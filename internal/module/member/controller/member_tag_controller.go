@@ -31,7 +31,8 @@ func (ctl *MemberTagController) Create(c *gin.Context) {
 		return
 	}
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.tagService.Create(&req, operatorID); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.tagService.Create(&req, operatorID, tenantID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -53,7 +54,8 @@ func (ctl *MemberTagController) Update(c *gin.Context) {
 		return
 	}
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.tagService.Update(&req, operatorID); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.tagService.Update(&req, operatorID, tenantID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -73,7 +75,8 @@ func (ctl *MemberTagController) Delete(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, "参数错误")
 		return
 	}
-	if err := ctl.tagService.Delete(id); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.tagService.Delete(tenantID, id); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -95,7 +98,8 @@ func (ctl *MemberTagController) FindList(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
-	list, total, err := ctl.tagService.FindList(&req)
+	tenantID := common.GetTenantID(c)
+	list, total, err := ctl.tagService.FindList(tenantID, &req)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return

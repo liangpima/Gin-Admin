@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
 
@@ -64,8 +65,20 @@ func (r *configRepository) Update(config *model.SysConfig) error {
 	return r.db.Model(config).Select("Name", "ConfigKey", "Value", "Type", "Remark", "UpdateBy").Updates(config).Error
 }
 
+// Delete 软删除配置项。删除前改写 config_key 释放唯一索引占用，
+// 否则同 key 的配置将无法再次创建。
 func (r *configRepository) Delete(id uint) error {
-	return r.db.Delete(&model.SysConfig{}, id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var cfg model.SysConfig
+		if err := tx.First(&cfg, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.SysConfig{}).Where("id = ?", cfg.ID).
+			Update("config_key", common.FreedUniqueValue(cfg.ConfigKey, cfg.ID, 191)).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.SysConfig{}, id).Error
+	})
 }
 
 func (r *configRepository) FindByKeyPrefix(prefix string) ([]model.SysConfig, error) {

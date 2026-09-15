@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
 
@@ -66,8 +67,26 @@ func (r *postRepository) Update(post *model.SysPost) error {
 	return r.db.Model(post).Select("Code", "Name", "Sort", "Status", "Remark", "UpdateBy").Updates(post).Error
 }
 
+// Delete 软删除岗位，并清理用户-岗位关联。
+// 删除前改写 code 释放唯一索引占用，否则同编码岗位将无法再次创建。
 func (r *postRepository) Delete(id uint) error {
-	return r.db.Delete(&model.SysPost{}, id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var post model.SysPost
+		if err := tx.First(&post, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.SysPost{}).Where("id = ?", post.ID).
+			Update("code", common.FreedUniqueValue(post.Code, post.ID, 64)).Error; err != nil {
+			return err
+		}
+
+		// 清理关联表，避免留下孤儿记录
+		if err := tx.Where("post_id = ?", post.ID).Delete(&model.SysUserPost{}).Error; err != nil {
+			return err
+		}
+
+		return tx.Delete(&model.SysPost{}, id).Error
+	})
 }
 
 func (r *postRepository) CountByCode(code string, excludeID uint) int64 {

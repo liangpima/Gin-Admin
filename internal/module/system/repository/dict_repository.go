@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
 
@@ -69,8 +70,20 @@ func (r *dictRepository) UpdateType(dictType *model.SysDictType) error {
 	return r.db.Model(dictType).Select("Name", "Type", "Status", "Remark", "UpdateBy").Updates(dictType).Error
 }
 
+// DeleteType 软删除字典类型。删除前改写 type 释放唯一索引占用，
+// 否则同类型字典将无法再次创建。
 func (r *dictRepository) DeleteType(id uint) error {
-	return r.db.Delete(&model.SysDictType{}, id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var dictType model.SysDictType
+		if err := tx.First(&dictType, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.SysDictType{}).Where("id = ?", dictType.ID).
+			Update("type", common.FreedUniqueValue(dictType.Type, dictType.ID, 128)).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.SysDictType{}, id).Error
+	})
 }
 
 func (r *dictRepository) CreateData(dictData *model.SysDictData) error {

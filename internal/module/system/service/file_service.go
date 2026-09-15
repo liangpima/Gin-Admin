@@ -6,10 +6,10 @@ import (
 )
 
 type FileService interface {
-	Create(file *model.SysFile) error
-	FindByID(id uint) (*model.SysFile, error)
-	FindList(name, mimeType, sortOrder string, page, pageSize int) ([]model.SysFile, int64, error)
-	Delete(id uint) error
+	Create(tenantID uint, file *model.SysFile) error
+	FindByID(tenantID, id uint) (*model.SysFile, error)
+	FindList(tenantID uint, name, mimeType, sortOrder string, page, pageSize int) ([]model.SysFile, int64, error)
+	Delete(tenantID, id uint) error
 }
 
 type fileService struct {
@@ -22,18 +22,20 @@ func NewFileService() FileService {
 	}
 }
 
-func (s *fileService) Create(file *model.SysFile) error {
+// Create 创建文件记录，自动绑定租户
+func (s *fileService) Create(tenantID uint, file *model.SysFile) error {
+	file.TenantID = tenantID
 	return s.fileRepo.Create(file)
 }
 
-func (s *fileService) FindByID(id uint) (*model.SysFile, error) {
-	return s.fileRepo.FindByID(id)
+func (s *fileService) FindByID(tenantID, id uint) (*model.SysFile, error) {
+	return s.fileRepo.FindByID(tenantID, id)
 }
 
-func (s *fileService) FindList(name, mimeType, sortOrder string, page, pageSize int) ([]model.SysFile, int64, error) {
-	return s.fileRepo.FindList(name, mimeType, sortOrder, page, pageSize)
+func (s *fileService) FindList(tenantID uint, name, mimeType, sortOrder string, page, pageSize int) ([]model.SysFile, int64, error) {
+	return s.fileRepo.FindList(tenantID, name, mimeType, sortOrder, page, pageSize)
 }
 
-func (s *fileService) Delete(id uint) error {
-	return s.fileRepo.Delete(id)
+func (s *fileService) Delete(tenantID, id uint) error {
+	return s.fileRepo.Delete(tenantID, id)
 }

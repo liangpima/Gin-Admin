@@ -133,17 +133,30 @@ func (s *captchaService) Verify(token string, points []model.Point) (*model.Capt
 	}, nil
 }
 
+// randomChars 从字符池中不重复地随机抽取 n 个字符。
+//
+// 必须保证互不相同：本验证码是「按提示顺序依次点击」，
+// 一旦出现重复字符（如 ABA），图上会存在两个相同的 A，
+// 用户无法分辨应先点击哪一个，只能靠猜，会直接导致验证失败。
 func (s *captchaService) randomChars(n int) (string, error) {
-	poolSize := big.NewInt(int64(len(charPool)))
-	result := make([]rune, n)
-	for i := 0; i < n; i++ {
-		idx, err := rand.Int(rand.Reader, poolSize)
+	if n > len(charPool) {
+		return "", fmt.Errorf("验证码长度 %d 超过字符池容量 %d", n, len(charPool))
+	}
+
+	// 复制字符池后做 Fisher-Yates 洗牌，取前 n 个即为不放回抽样结果
+	pool := make([]rune, len(charPool))
+	copy(pool, charPool)
+
+	for i := len(pool) - 1; i > 0; i-- {
+		j, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
 		if err != nil {
 			return "", err
 		}
-		result[i] = charPool[idx.Int64()]
+		k := j.Int64()
+		pool[i], pool[k] = pool[k], pool[i]
 	}
-	return string(result), nil
+
+	return string(pool[:n]), nil
 }
 
 func (s *captchaService) randomPoints(n int) ([]model.Point, error) {
@@ -225,13 +238,8 @@ func (s *captchaService) generateBackground(chars string, points []model.Point) 
 func (s *captchaService) drawChar(img *image.RGBA, x, y int, ch rune) {
 	scale := 4
 	face := basicfont.Face7x13
-	d := &font.Drawer{
-		Dst:  img,
-		Src:  image.NewUniform(color.RGBA{R: 10, G: 40, B: 100, A: 255}),
-		Face: face,
-		Dot:  fixed.P(0, 0),
-	}
 
+	// 先把字符绘制到临时画布上，便于测量其真实墨迹范围
 	charImg := image.NewRGBA(image.Rect(0, 0, 12, 18))
 	charDrawer := &font.Drawer{
 		Dst:  charImg,
@@ -241,13 +249,38 @@ func (s *captchaService) drawChar(img *image.RGBA, x, y int, ch rune) {
 	}
 	charDrawer.DrawString(string(ch))
 
-	offsetX := x - 6*scale/2
-	offsetY := y - 9*scale/2
-
+	// 求墨迹包围盒。字形并未填满 12x18 画布，且不同字符范围不同，
+	// 因此必须按实际墨迹居中，否则字符会整体偏离目标点。
+	minX, minY, maxX, maxY := 12, 18, -1, -1
 	for dy := 0; dy < 18; dy++ {
 		for dx := 0; dx < 12; dx++ {
-			_, _, _, a := charImg.At(dx, dy).RGBA()
-			if a == 0 {
+			if _, _, _, a := charImg.At(dx, dy).RGBA(); a != 0 {
+				if dx < minX {
+					minX = dx
+				}
+				if dx > maxX {
+					maxX = dx
+				}
+				if dy < minY {
+					minY = dy
+				}
+				if dy > maxY {
+					maxY = dy
+				}
+			}
+		}
+	}
+	if maxX < 0 {
+		return // 空白字形，理论上不会出现
+	}
+
+	// 让墨迹中心正好落在目标点上，保证用户点击字符中心即可命中 Verify 的容差
+	offsetX := x - (minX+maxX+1)*scale/2
+	offsetY := y - (minY+maxY+1)*scale/2
+
+	for dy := minY; dy <= maxY; dy++ {
+		for dx := minX; dx <= maxX; dx++ {
+			if _, _, _, a := charImg.At(dx, dy).RGBA(); a == 0 {
 				continue
 			}
 			for sy := 0; sy < scale; sy++ {
@@ -261,24 +294,6 @@ func (s *captchaService) drawChar(img *image.RGBA, x, y int, ch rune) {
 			}
 		}
 	}
-
-	radius := charSize/2 + 4
-	for dy := -radius; dy <= radius; dy++ {
-		for dx := -radius; dx <= radius; dx++ {
-			if dx*dx+dy*dy > radius*radius {
-				continue
-			}
-			px, py := x+dx, y+dy
-			if px >= 0 && px < bgWidth && py >= 0 && py < bgHeight {
-				_, _, _, a := img.At(px, py).RGBA()
-				if a < 128 {
-					img.SetRGBA(px, py, color.RGBA{R: 255, G: 255, B: 255, A: 180})
-				}
-			}
-		}
-	}
-
-	_ = d
 }
 
 func (s *captchaService) drawLine(img *image.RGBA, x0, y0, x1, y1 int, c color.RGBA) {

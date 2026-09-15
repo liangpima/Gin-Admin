@@ -2,11 +2,9 @@ package controller
 
 import (
 	"strconv"
-	"time"
 
 	"go-admin/internal/common"
 	"go-admin/internal/module/member/dto"
-	"go-admin/internal/module/member/repository"
 	"go-admin/internal/module/member/service"
 	systemModel "go-admin/internal/module/system/model"
 	systemService "go-admin/internal/module/system/service"
@@ -16,15 +14,15 @@ import (
 
 type MemberController struct {
 	memberService service.MemberService
-	levelRepo     repository.MemberLevelRepository
-	tagRepo       repository.MemberTagRepository
+	levelService  service.MemberLevelService
+	tagService    service.MemberTagService
 }
 
 func NewMemberController() *MemberController {
 	return &MemberController{
 		memberService: service.NewMemberService(),
-		levelRepo:     repository.NewMemberLevelRepository(),
-		tagRepo:       repository.NewMemberTagRepository(),
+		levelService:  service.NewMemberLevelService(),
+		tagService:    service.NewMemberTagService(),
 	}
 }
 
@@ -142,7 +140,8 @@ func (ctl *MemberController) UpdateTags(c *gin.Context) {
 }
 
 func (ctl *MemberController) FindAllLevels(c *gin.Context) {
-	levels, err := ctl.levelRepo.FindAll()
+	tenantID := common.GetTenantID(c)
+	levels, err := ctl.levelService.FindAll(tenantID)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
@@ -151,7 +150,8 @@ func (ctl *MemberController) FindAllLevels(c *gin.Context) {
 }
 
 func (ctl *MemberController) FindAllTags(c *gin.Context) {
-	tags, err := ctl.tagRepo.FindAll()
+	tenantID := common.GetTenantID(c)
+	tags, err := ctl.tagService.FindAll(tenantID)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
@@ -168,13 +168,9 @@ func (ctl *MemberController) UpdateLastVisit(c *gin.Context) {
 		return
 	}
 	tenantID := common.GetTenantID(c)
-	member, err := ctl.memberService.FindByID(tenantID, req.ID)
-	if err != nil {
-		common.Error(c, common.CodeNotFound, "会员不存在")
+	if err := ctl.memberService.UpdateLastVisit(tenantID, req.ID); err != nil {
+		common.Error(c, common.CodeNotFound, err.Error())
 		return
 	}
-	now := time.Now()
-	member.LastVisitTime = &now
-	_ = repository.NewMemberRepository().Update(member)
 	common.Success(c, nil)
 }

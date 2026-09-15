@@ -62,7 +62,8 @@ func (ctl *FileController) Upload(c *gin.Context) {
 	dbFile.CreateBy = common.GetCurrentUserID(c)
 	dbFile.UpdateBy = common.GetCurrentUserID(c)
 
-	if err := ctl.fileService.Create(dbFile); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.fileService.Create(tenantID, dbFile); err != nil {
 		common.Error(c, common.CodeInternalError, "保存记录失败")
 		return
 	}
@@ -90,7 +91,8 @@ func (ctl *FileController) FindList(c *gin.Context) {
 	sortOrder := c.DefaultQuery("sortOrder", "desc")
 	page, pageSize := common.GetPageInfo(c)
 
-	list, total, err := ctl.fileService.FindList(name, mimeType, sortOrder, page, pageSize)
+	tenantID := common.GetTenantID(c)
+	list, total, err := ctl.fileService.FindList(tenantID, name, mimeType, sortOrder, page, pageSize)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
@@ -111,7 +113,8 @@ func (ctl *FileController) FindByID(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, "参数错误")
 		return
 	}
-	file, err := ctl.fileService.FindByID(id)
+	tenantID := common.GetTenantID(c)
+	file, err := ctl.fileService.FindByID(tenantID, id)
 	if err != nil {
 		common.Error(c, common.CodeNotFound, "文件不存在")
 		return
@@ -132,7 +135,8 @@ func (ctl *FileController) Delete(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, "参数错误")
 		return
 	}
-	file, err := ctl.fileService.FindByID(id)
+	tenantID := common.GetTenantID(c)
+	file, err := ctl.fileService.FindByID(tenantID, id)
 	if err != nil {
 		common.Error(c, common.CodeNotFound, "文件不存在")
 		return
@@ -140,7 +144,7 @@ func (ctl *FileController) Delete(c *gin.Context) {
 
 	_ = upload.Delete(file.Path)
 
-	if err := ctl.fileService.Delete(id); err != nil {
+	if err := ctl.fileService.Delete(tenantID, id); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}

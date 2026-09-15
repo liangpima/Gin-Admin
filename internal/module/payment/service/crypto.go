@@ -1,19 +1,31 @@
 package service
 
 import (
+	"crypto/rand"
 	"encoding/base64"
-	"math/rand"
-	"time"
+	"fmt"
+	"math/big"
 )
 
-func generateNonceStr() string {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	result := make([]byte, 32)
-	for i := range result {
-		result[i] = chars[r.Intn(len(chars))]
+const nonceChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+// generateNonceStr 生成 32 位随机字符串，用作微信支付签名中的 nonce_str。
+//
+// 必须使用 crypto/rand：nonce 参与签名，而 math/rand 的伪随机序列
+// （尤其是以时间戳播种时）是可预测的，不适合用于支付场景。
+func generateNonceStr() (string, error) {
+	buf := make([]byte, 32)
+	poolSize := big.NewInt(int64(len(nonceChars)))
+
+	for i := range buf {
+		idx, err := rand.Int(rand.Reader, poolSize)
+		if err != nil {
+			return "", fmt.Errorf("生成 nonce 失败: %w", err)
+		}
+		buf[i] = nonceChars[idx.Int64()]
 	}
-	return string(result)
+
+	return string(buf), nil
 }
 
 func base64EncodeStd(data []byte) string {

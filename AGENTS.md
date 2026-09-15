@@ -43,10 +43,13 @@ go-admin/
 │   └── casbin/model.conf           # RBAC 模型
 ├── internal/
 │   ├── cache/redis.go              # Redis 封装（可选）
-│   ├── common/                     # 统一响应/错误码/模型/分页
+│   ├── common/                     # 统一响应/错误码/模型/分页/软删除唯一值释放
 │   ├── database/mysql.go           # MySQL 连接
 │   ├── logger/zap.go               # Zap 日志
-│   ├── middleware/                  # 7个中间件
+│   ├── middleware/                 # 中间件
+│   │   ├── casbin.go               # RBAC 鉴权 + 角色菜单策略同步
+│   │   ├── casbin_adapter.go       # Casbin 策略的 GORM 适配器
+│   │   └── permission.go           # 路由权限登记表（见规则13）
 │   └── module/
 │       ├── system/                 # 系统管理（用户/角色/菜单/部门/岗位/配置/字典/日志/文件/协议）
 │       ├── payment/                # 支付模块
@@ -82,7 +85,7 @@ go-admin/
 └── AGENTS.md
 ```
 
-## 开发规则（12条铁律）
+## 开发规则（13条铁律）
 
 ### 规则1: Controller 只负责参数接收与返回
 
@@ -150,9 +153,22 @@ type BaseModel struct {
 
 - 使用 `common.TenantScope(db, tenantID)` 在 Repository 层过滤租户数据
 - 禁止无条件查询全表
-- Repository 方法必须接收 `tenantID uint` 参数
+- **Repository 方法必须接收 `tenantID uint` 参数**（从签名层面强制，避免漏传）
 - Controller 从 JWT claims 中提取 tenantID，透传给 Service → Repository
 - 支付回调等外部接口可使用 `FindByXxxForNotify()`（无 tenant 过滤）
+
+**必须按租户过滤的表**（表含 `tenant_id` 列；多数继承 `TenantBaseModel`，
+`pay_order` 为手动声明 `TenantID` 字段）：
+
+`sys_user`、`sys_role`、`sys_file`、`sys_operation_log`、`sys_login_log`、`pay_order`、`pay_member`、`pay_member_level`、`pay_member_tag`、`pay_points_log`
+
+**全局表**（继承 `BaseModel`，**不要**加租户过滤，否则会因无 `tenant_id` 列而 SQL 报错）：
+
+`sys_menu`、`sys_dept`、`sys_post`、`sys_config`、`sys_dict_type`、`sys_dict_data`、`sys_agreement`、`sys_tenant`
+
+⚠️ **`TenantScope(db, 0)` 表示「不过滤」**（用于 `tenant_id=0` 的平台级账号，如默认 admin）。
+因此**漏传 tenantID 会静默退化为全表查询**，造成跨租户数据泄漏 —— 这是该类问题最典型的成因，
+务必让 tenantID 贯穿 Controller → Service → Repository 全链路。
 
 ```go
 // ✅ 允许:
@@ -217,6 +233,24 @@ r.POST("/api/v1/pay/notify/alipay", payController.AlipayNotify)
 
 回调接口必须自行验签，防止伪造请求。
 
+### 规则13: 新增路由必须登记权限码
+
+受保护路由**必须**用 `protected()` 注册并声明权限码，权限码与 `sys_menu.permission` 保持一致：
+
+```go
+protected(system, http.MethodGet, "/user/list", permUserList, userController.FindList)
+```
+
+- 权限码常量集中在 `router/router.go` 顶部定义（`permXxx`）
+- 需要新权限码时，**同时**在 `sql/init.sql` 的 `sys_menu` 补一条 `type=2` 的按钮权限记录，
+  否则该权限无法被分配给角色
+- **仅要求登录态**的自助接口（userInfo / changePwd / dashboard / logout）权限码传空串 `""`
+- 鉴权中间件按登记表校验，**未登记的路由默认拒绝（403）**。漏配不会静默开放，
+  但会导致接口不可用，新增路由后务必实测
+
+授权关系来自 `sys_role_menu`（角色-菜单），中间件启动时及角色变更后自动同步为 Casbin 策略，
+因此**给角色勾选菜单即等于分配权限**，无需手工维护 `casbin_rule` 表。
+
 ## 中间件使用顺序
 
 路由组注册时的中间件应用顺序（`router/router.go`）：
@@ -225,6 +259,13 @@ r.POST("/api/v1/pay/notify/alipay", payController.AlipayNotify)
 全局中间件: Recovery → Logger → Cors → Tenant
 鉴权中间件: Auth → CasbinAuth → OperationLog（仅受保护路由组）
 ```
+
+权限校验流程：路由注册阶段由 `protected()` 把「方法 + 完整路径」与权限码登记到中间件的
+路由权限表 → 请求到达时 `CasbinAuth` 用 `c.FullPath()` 查表 → 按当前用户的角色逐个 `Enforce`。
+
+⚠️ **不要把权限码做成路由级中间件去 `c.Set()`**：gin 的**组中间件先于路由级中间件执行**，
+组级 `CasbinAuth` 运行时该值尚未写入，会导致校验被整体跳过（等于全部放行）。
+这是本项目中已经踩过一次的坑。
 
 ## 后端目录规范
 
@@ -341,12 +382,14 @@ make deps                      # 整理依赖
 
 ### 认证与授权
 
-- JWT Secret 通过环境变量 `JWT_SECRET` 注入，禁止硬编码
-- Access Token 有效期 2 小时，Refresh Token 7 天
-- 登录限频：同一 IP 5 分钟内最多 5 次失败，超限锁定 15 分钟
+- JWT Secret 通过环境变量 `JWT_SECRET` 注入，禁止硬编码；**生产环境（mode=release）若仍为默认值将拒绝启动**
+- Access Token 有效期 2 小时，Refresh Token 7 天；两者 Issuer 不同，`ParseToken` 只接受 Access Token，`ParseRefreshToken` 只接受 Refresh Token
+- 登录限频：**IP 与账号双维度**各 5 次失败后锁定 15 分钟（仅在失败时计数，登录成功则清零）
 - 密码修改/用户禁用后自动吊销所有 Token（Redis 黑名单）
 - 退出登录时将 Access Token 加入 Redis 黑名单（`cache.RevokeToken`），Auth 中间件检查 `IsTokenRevoked`
-- Casbin RBAC 中间件已挂载，空策略时跳过检查（开发兼容）
+- **RBAC 已启用**：主体为角色 code，策略由 `sys_role_menu` + `sys_menu.permission` 自动生成（见规则13）；
+  角色 `admin` 始终持有 `*` 通配策略；未登记权限码的路由默认拒绝
+- 登录失败统一返回「用户名或密码错误」，避免用户名枚举
 
 ### 密码安全
 
@@ -389,6 +432,44 @@ export JWT_SECRET="your_jwt_secret"
 export REDIS_PASSWORD="your_redis_password"
 ```
 
+- 生产环境若 `jwt.secret` 或 `database.password` 仍为配置文件中的默认值，服务将**拒绝启动**
+- `sys_config` 中的敏感项（key 命中 secret / password / key / pem / private / token）经接口返回时
+  会打码为 `******`；**服务内部读取真实值必须用 `ConfigService.FindByPrefixRaw()`**
+- `BatchSave` 会跳过值为 `******` 的项，因此前端原样回传占位符不会覆盖真实密钥
+- 新增支付/存储类密钥时，配置项 key 应包含上述关键词，以便自动纳入打码
+- **操作日志会自动脱敏请求体**：`middleware/operation_log.go` 的 `sensitiveBodyFields`
+  命中 `password / oldpassword / newpassword / secret / privatekey / accesskey / apiv3key / token` 等
+  字段名即替换为 `******`，非 JSON 请求体不记录内容，整体按 2000 字截断。
+  新增接口若含其他敏感字段，需把字段名加入该 map
+- 操作日志/登录日志按 `log.db_retention_days`（默认 90 天）由定时任务每天 03:00 清理；
+  定时任务框架为 `pkg/task`，在 `cmd/server/main.go` 中注册并 `task.Start()`
+
+### 软删除与唯一索引
+
+唯一索引**不区分记录是否已软删除**。删除时若不改写唯一字段，被删记录会一直占用该值，
+导致同名记录无法再次创建（`Duplicate entry`）。
+
+因此 `Delete` 必须**在事务内**完成两件事：
+
+1. 改写唯一字段释放索引占用 —— 用 `common.FreedUniqueValue(value, id, maxLen)`
+2. 清理关联表，避免留下孤儿记录
+
+涉及的表与列：
+
+| 表 | 唯一列 | 列长 | 删除时需清理的关联表 |
+|----|--------|------|---------------------|
+| `sys_user` | `username` | 64 | `sys_user_role`、`sys_user_post` |
+| `sys_role` | `code` | 64 | `sys_user_role`、`sys_role_menu` |
+| `sys_post` | `code` | 64 | `sys_user_post` |
+| `sys_menu` | — | — | `sys_role_menu` |
+| `sys_config` | `config_key` | 191 | — |
+| `sys_dict_type` | `type` | 128 | — |
+| `pay_member` | `phone` / `member_no` | 20 / 32 | `pay_member_tag_rel` |
+| `pay_member_tag` | — | — | `pay_member_tag_rel` |
+
+⚠️ **不要用 GORM 的 `BeforeDelete` 钩子做这件事**：`db.Delete(&Model{}, id)` 不会加载模型，
+钩子里读到的字段是空的，改写会把值覆盖成 `_del_<id>`，造成数据损坏。必须显式「先查后改」。
+
 ### 前端安全
 
 - Token 存储在 Cookie 中，设置 `sameSite: Lax` + `secure`（HTTPS 时）
@@ -397,16 +478,16 @@ export REDIS_PASSWORD="your_redis_password"
 
 ## 新业务模块接入清单
 
-1. 在 `internal/module/<模块名>/model/` 创建数据模型（继承 BaseModel 或 TenantBaseModel）
-2. 在 `internal/module/<模块名>/repository/` 创建数据访问层
-3. 在 `internal/module/<模块名>/service/` 创建业务逻辑层
+1. 在 `internal/module/<模块名>/model/` 创建数据模型（多租户表继承 `TenantBaseModel`，全局表继承 `BaseModel`）
+2. 在 `internal/module/<模块名>/repository/` 创建数据访问层（多租户表的方法**必须接收 `tenantID`**）
+3. 在 `internal/module/<模块名>/service/` 创建业务逻辑层（**透传 `tenantID`**）
 4. 在 `internal/module/<模块名>/dto/` 创建请求 DTO
 5. 在 `internal/module/<模块名>/vo/` 创建响应 VO（如需要）
 6. 在 `internal/module/<模块名>/controller/` 创建接口层
-7. 在 `router/router.go` 注册路由（鉴权路由放 Auth 组内）
-8. 在 `sql/init.sql` 添加建表语句和初始数据
-11. 在 `web/src/api/` 创建前端 API 文件
-12. 在 `web/src/views/` 创建前端页面（支持响应式）
-13. 在 controller 方法上添加 Swagger 注解
-14. 运行 `swag init -g cmd/server/main.go -o docs` 生成文档
-15. 页面必须支持响应式（搜索栏用 `el-row`/`el-col` 断点，弹窗小屏适配）
+7. 在 `router/router.go` 顶部定义权限码常量，并用 `protected()` 注册路由（见规则13）
+8. 在 `sql/init.sql` 添加建表语句、初始数据，**以及新权限码对应的 `sys_menu` 按钮记录**（`type=2`）
+9. 在 `web/src/api/` 创建前端 API 文件
+10. 在 `web/src/views/` 创建前端页面（支持响应式）
+11. 在 controller 方法上添加 Swagger 注解
+12. 运行 `swag init -g cmd/server/main.go -o docs` 生成文档
+13. **实测验证**：分别用有权限和无权限的账号访问新接口，确认返回 200 / 403 符合预期

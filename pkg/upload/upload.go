@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +17,27 @@ type uploader interface {
 	GetURL(path string) string
 }
 
-var up uploader
+// up 当前生效的上传实现。
+// 通过 upMu 保护：管理员保存 oss.* 配置时会调用 Reload 重建实现，
+// 此时可能仍有请求在并发上传，必须加锁避免数据竞争。
+var (
+	upMu sync.RWMutex
+	up   uploader
+)
+
+// getUploader 并发安全地读取当前上传实现
+func getUploader() uploader {
+	upMu.RLock()
+	defer upMu.RUnlock()
+	return up
+}
+
+// setUploader 并发安全地替换当前上传实现
+func setUploader(u uploader) {
+	upMu.Lock()
+	defer upMu.Unlock()
+	up = u
+}
 
 // allowedExts 上传文件扩展名白名单
 var allowedExts = map[string]bool{
@@ -53,31 +74,31 @@ func Init(cfgMap map[string]string) {
 		ossUploader, err := newAliyunOSS(cfg)
 		if err != nil {
 			log.Printf("[upload] 阿里云OSS初始化失败，回退到本地存储: %v", err)
-			up = &localUploader{}
+			setUploader(&localUploader{})
 			return
 		}
-		up = ossUploader
+		setUploader(ossUploader)
 		log.Printf("[upload] 使用阿里云OSS存储, Bucket: %s", cfg.Bucket)
 	case "tencent":
 		cosUploader, err := newTencentCOS(cfg)
 		if err != nil {
 			log.Printf("[upload] 腾讯云COS初始化失败，回退到本地存储: %v", err)
-			up = &localUploader{}
+			setUploader(&localUploader{})
 			return
 		}
-		up = cosUploader
+		setUploader(cosUploader)
 		log.Printf("[upload] 使用腾讯云COS存储, Bucket: %s", cfg.Bucket)
 	case "minio":
 		minioUp, err := newMinIO(cfg)
 		if err != nil {
 			log.Printf("[upload] MinIO初始化失败，回退到本地存储: %v", err)
-			up = &localUploader{}
+			setUploader(&localUploader{})
 			return
 		}
-		up = minioUp
+		setUploader(minioUp)
 		log.Printf("[upload] 使用MinIO存储, Bucket: %s", cfg.Bucket)
 	default:
-		up = &localUploader{}
+		setUploader(&localUploader{})
 		log.Printf("[upload] 使用本地存储")
 	}
 }
@@ -105,7 +126,8 @@ func ValidateFile(filename string) error {
 }
 
 func Upload(file *multipart.FileHeader) (string, error) {
-	if up == nil {
+	u := getUploader()
+	if u == nil {
 		return "", fmt.Errorf("上传模块未初始化")
 	}
 
@@ -114,7 +136,7 @@ func Upload(file *multipart.FileHeader) (string, error) {
 		return "", err
 	}
 
-	return up.Upload(file)
+	return u.Upload(file)
 }
 
 func UploadWithContext(c *gin.Context, file *multipart.FileHeader) (string, error) {
@@ -122,15 +144,17 @@ func UploadWithContext(c *gin.Context, file *multipart.FileHeader) (string, erro
 }
 
 func Delete(path string) error {
-	if up == nil {
+	u := getUploader()
+	if u == nil {
 		return fmt.Errorf("上传模块未初始化")
 	}
-	return up.Delete(path)
+	return u.Delete(path)
 }
 
 func GetURL(path string) string {
-	if up == nil {
+	u := getUploader()
+	if u == nil {
 		return "/uploads/" + path
 	}
-	return up.GetURL(path)
+	return u.GetURL(path)
 }

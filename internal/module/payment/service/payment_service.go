@@ -92,9 +92,6 @@ func (s *PaymentService) HandleNotify(channel string, result *PayNotifyResult) e
 		return fmt.Errorf("invalid notify result")
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// 回调场景：不带 tenant_id 过滤（无法从外部请求获取租户信息）
 	order, err := s.orderRepo.FindByOrderNoForNotify(result.OrderNo)
 	if err != nil {
@@ -113,13 +110,23 @@ func (s *PaymentService) HandleNotify(channel string, result *PayNotifyResult) e
 			return fmt.Errorf("支付金额不匹配")
 		}
 
-		order.Status = 1
-		order.TradeNo = result.TradeNo
-		order.PaidAt = result.PaidAt
-		order.RawNotify = result.RawData
-		if err := s.orderRepo.Update(order); err != nil {
+		paidAt := result.PaidAt
+		if paidAt == nil {
+			now := time.Now()
+			paidAt = &now
+		}
+
+		// 以数据库条件更新保证幂等：并发/重复回调中只有一个能完成状态流转，
+		// 避免因实例级锁不共享（每次请求新建 Service）导致的重复发货。
+		affected, err := s.orderRepo.MarkPaidIfPending(result.OrderNo, result.TradeNo, paidAt, result.RawData)
+		if err != nil {
 			return err
 		}
+		if !affected {
+			log.Printf("[payment] order %s already processed by concurrent notify, skip", result.OrderNo)
+			return nil
+		}
+
 		log.Printf("[payment] order %s paid successfully, trade_no: %s", result.OrderNo, result.TradeNo)
 	}
 
@@ -262,7 +269,8 @@ func (s *PaymentService) RefundOrderWithPayInfo(tenantID uint, orderNo string, r
 
 func loadPayConfig() map[string]string {
 	configService := systemService.NewConfigService()
-	results, _ := configService.FindByPrefix("pay.")
+	// 需要真实密钥用于签名与验签，因此读取原始值（接口侧会打码）
+	results, _ := configService.FindByPrefixRaw("pay.")
 
 	cfgMap := make(map[string]string)
 	for _, r := range results {
@@ -282,6 +290,7 @@ func LoadWechatPayConfig() *WechatPayConfig {
 		AppID:     cfgMap["wechat_app_id"],
 		MchID:     cfgMap["wechat_mch_id"],
 		Key:       cfgMap["wechat_key"],
+		APIv3Key:  cfgMap["wechat_apiv3_key"],
 		SerialNo:  cfgMap["wechat_serial_no"],
 		NotifyURL: cfgMap["notify_url"],
 	}

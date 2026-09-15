@@ -33,6 +33,8 @@ log:
   max_backups: 7
   max_age: 30
   compress: true
+  # 数据库操作日志/登录日志的保留天数，超期由定时任务每天清理（<=0 表示不清理）
+  db_retention_days: 90
 
 upload:
   save_path: uploads/

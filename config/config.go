@@ -71,6 +71,9 @@ type LogConfig struct {
 	MaxBackups int    `mapstructure:"max_backups"`
 	MaxAge     int    `mapstructure:"max_age"`
 	Compress   bool   `mapstructure:"compress"`
+	// DBRetentionDays 数据库操作日志/登录日志的保留天数，超期由定时任务清理；
+	// 小于等于 0 表示不自动清理
+	DBRetentionDays int `mapstructure:"db_retention_days"`
 }
 
 type UploadConfig struct {
@@ -122,4 +125,35 @@ func GetJWTSecret() string {
 // IsProduction returns true if mode is release
 func IsProduction() bool {
 	return strings.EqualFold(Cfg.Server.Mode, "release")
+}
+
+// 配置文件中的默认值。这些值公开可见，生产环境必须覆盖。
+const (
+	defaultJWTSecret  = "change-me-in-production"
+	defaultDBPassword = "123456"
+)
+
+// ValidateSecurity 校验生产环境的关键密钥是否仍为默认值。
+//
+// 默认值一旦被带上生产环境，攻击者可据此伪造 JWT（等同于任意用户登录）
+// 或直连数据库，因此这里直接拒绝启动，而不是仅打印告警。
+// 开发环境不做限制，便于本地起步。
+func ValidateSecurity() error {
+	if !IsProduction() {
+		return nil
+	}
+
+	var problems []string
+
+	if secret := GetJWTSecret(); secret == "" || secret == defaultJWTSecret {
+		problems = append(problems, "jwt.secret 仍为默认值（请设置环境变量 JWT_SECRET）")
+	}
+	if Cfg.Database.Password == defaultDBPassword {
+		problems = append(problems, "database.password 仍为默认值（请设置环境变量 DB_PASSWORD）")
+	}
+
+	if len(problems) > 0 {
+		return fmt.Errorf("生产环境安全检查未通过，已拒绝启动：\n  - %s", strings.Join(problems, "\n  - "))
+	}
+	return nil
 }

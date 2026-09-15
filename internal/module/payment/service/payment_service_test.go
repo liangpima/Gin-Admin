@@ -89,6 +89,23 @@ func (m *mockOrderRepo) FindList(tenantID uint, subject string, status int8, cha
 	return result, int64(len(result)), nil
 }
 
+// MarkPaidIfPending 模拟数据库条件更新：仅当订单仍为待支付（status=0）时才更新，
+// 返回是否由本次调用完成状态流转
+func (m *mockOrderRepo) MarkPaidIfPending(orderNo, tradeNo string, paidAt *time.Time, rawNotify string) (bool, error) {
+	o, ok := m.orders[orderNo]
+	if !ok {
+		return false, nil
+	}
+	if o.Status != 0 {
+		return false, nil
+	}
+	o.Status = 1
+	o.TradeNo = tradeNo
+	o.PaidAt = paidAt
+	o.RawNotify = rawNotify
+	return true, nil
+}
+
 func newTestService(repo *mockOrderRepo) *PaymentService {
 	return &PaymentService{orderRepo: repo}
 }

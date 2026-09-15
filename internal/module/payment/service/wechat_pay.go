@@ -24,9 +24,13 @@ import (
 )
 
 type WechatPayConfig struct {
-	AppID     string
-	MchID     string
-	Key       string
+	AppID string
+	MchID string
+	// Key 商户 API 私钥（PEM 格式），用于请求签名
+	Key string
+	// APIv3Key 微信支付 APIv3 密钥（32 位字符串），用于回调报文解密。
+	// 它与上面的商户私钥是两个完全不同的凭据，不可互相替代。
+	APIv3Key  string
 	SerialNo  string
 	NotifyURL string
 }
@@ -82,7 +86,10 @@ func (g *WechatPayGateway) Prepay(ctx context.Context, orderNo, subject, body st
 
 func (g *WechatPayGateway) generateJSAPIPayInfo(prepayID string) (map[string]interface{}, error) {
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	nonceStr := generateNonceStr()
+	nonceStr, err := generateNonceStr()
+	if err != nil {
+		return nil, err
+	}
 	packageStr := "prepay_id=" + prepayID
 
 	message := fmt.Sprintf("%s\n%s\n%s\n%s\n", g.config.AppID, timestamp, nonceStr, packageStr)
@@ -266,15 +273,12 @@ func (g *WechatPayGateway) getPlatformPublicKey(serial string) (*rsa.PublicKey, 
 }
 
 func (g *WechatPayGateway) decryptResource(ciphertext, nonce, associatedData string) ([]byte, error) {
-	// APIv3 key is the WechatPay key (not the merchant private key)
-	// In production, this should be configured separately
-	// The key is 32 bytes base64-encoded APIv3 key from merchant platform
-	apiKey := g.config.Key
-	if len(apiKey) < 32 {
-		return nil, fmt.Errorf("APIv3 key too short, need at least 32 bytes")
+	// 回调解密用的是「APIv3 密钥」——商户在微信支付平台单独设置的 32 位字符串，
+	// 而不是请求签名所用的商户私钥（config.Key）。二者混用会导致解密必然失败。
+	keyBytes := []byte(g.config.APIv3Key)
+	if len(keyBytes) != 32 {
+		return nil, fmt.Errorf("APIv3 密钥长度必须为 32 字节，当前 %d 字节", len(keyBytes))
 	}
-
-	keyBytes := []byte(apiKey[:32])
 
 	ciphertextBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
@@ -291,10 +295,12 @@ func (g *WechatPayGateway) decryptResource(ciphertext, nonce, associatedData str
 		return nil, err
 	}
 
-	nonceBytes := []byte(nonce)
-	aadBytes := []byte(associatedData)
+	// APIv3 报文的 nonce 为 12 字节，与 GCM 标准 nonce 长度一致
+	if len(nonce) != aesGCM.NonceSize() {
+		return nil, fmt.Errorf("nonce 长度必须为 %d 字节，当前 %d 字节", aesGCM.NonceSize(), len(nonce))
+	}
 
-	plaintext, err := aesGCM.Open(nil, nonceBytes, ciphertextBytes, aadBytes)
+	plaintext, err := aesGCM.Open(nil, []byte(nonce), ciphertextBytes, []byte(associatedData))
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +317,10 @@ func (g *WechatPayGateway) doRequest(method, url string, body []byte) ([]byte, e
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	authorization := g.generateAuthorization(method, url, string(body))
+	authorization, err := g.generateAuthorization(method, url, string(body))
+	if err != nil {
+		return nil, fmt.Errorf("生成支付请求签名失败: %w", err)
+	}
 	req.Header.Set("Authorization", authorization)
 
 	resp, err := g.client.Do(req)
@@ -329,21 +338,27 @@ func (g *WechatPayGateway) doRequest(method, url string, body []byte) ([]byte, e
 	return respBody, nil
 }
 
-func (g *WechatPayGateway) generateAuthorization(method, url, body string) string {
+func (g *WechatPayGateway) generateAuthorization(method, url, body string) (string, error) {
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	nonceStr := generateNonceStr()
+	nonceStr, err := generateNonceStr()
+	if err != nil {
+		return "", err
+	}
 	message := fmt.Sprintf("%s\n%s\n%s\n%s\n", method, url, timestamp, nonceStr)
 
 	pk, err := parsePrivateKey(g.config.Key)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
 	hash := sha256.Sum256([]byte(message))
-	sign, _ := rsa.SignPKCS1v15(rand.Reader, pk, crypto.SHA256, hash[:])
+	sign, err := rsa.SignPKCS1v15(rand.Reader, pk, crypto.SHA256, hash[:])
+	if err != nil {
+		return "", err
+	}
 
 	return fmt.Sprintf(`WECHATPAY2-SHA256-RSA2048 mchid="%s",nonce_str="%s",signature="%s",timestamp="%s",serial_no="%s"`,
-		g.config.MchID, nonceStr, base64.StdEncoding.EncodeToString(sign), timestamp, g.config.SerialNo)
+		g.config.MchID, nonceStr, base64.StdEncoding.EncodeToString(sign), timestamp, g.config.SerialNo), nil
 }
 
 func parsePrivateKey(key string) (*rsa.PrivateKey, error) {

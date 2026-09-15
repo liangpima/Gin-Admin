@@ -23,6 +23,7 @@ type MemberService interface {
 	FindList(tenantID uint, req *dto.MemberListRequest) ([]interface{}, int64, error)
 	UpdateStatus(tenantID uint, req *dto.UpdateMemberStatusRequest) error
 	UpdateTags(tenantID uint, req *dto.UpdateMemberTagsRequest) error
+	UpdateLastVisit(tenantID, id uint) error
 }
 
 type memberService struct {
@@ -166,7 +167,7 @@ func (s *memberService) FindList(tenantID uint, req *dto.MemberListRequest) ([]i
 	result := make([]interface{}, len(members))
 	for i, m := range members {
 		tagIDs, _ := s.memberRepo.FindTagIDsByMemberID(tenantID, m.ID)
-		tags, _ := s.tagRepo.FindByIDs(tagIDs)
+		tags, _ := s.tagRepo.FindByIDs(tenantID, tagIDs)
 		result[i] = memberWithTag{Member: m, Tags: tags}
 	}
 	return result, total, nil
@@ -222,4 +223,15 @@ func (s *memberService) UpdateTags(tenantID uint, req *dto.UpdateMemberTagsReque
 		return errors.New("会员不存在")
 	}
 	return s.memberRepo.ReplaceTags(tenantID, req.ID, req.TagIds)
+}
+
+// UpdateLastVisit 更新会员最后访问时间
+func (s *memberService) UpdateLastVisit(tenantID, id uint) error {
+	member, err := s.memberRepo.FindByID(tenantID, id)
+	if err != nil {
+		return errors.New("会员不存在")
+	}
+	now := time.Now()
+	member.LastVisitTime = &now
+	return s.memberRepo.Update(member)
 }

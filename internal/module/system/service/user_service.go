@@ -81,10 +81,14 @@ func (s *userService) Create(tenantID uint, req *dto.CreateUserRequest, operator
 	}
 
 	if len(req.RoleIds) > 0 {
-		_ = s.userRepo.ReplaceRoles(user.ID, req.RoleIds)
+		if err := s.userRepo.ReplaceRoles(user.ID, req.RoleIds); err != nil {
+			return err
+		}
 	}
 	if len(req.PostIds) > 0 {
-		_ = s.userRepo.ReplacePosts(user.ID, req.PostIds)
+		if err := s.userRepo.ReplacePosts(user.ID, req.PostIds); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -116,10 +120,14 @@ func (s *userService) Update(tenantID uint, req *dto.UpdateUserRequest, operator
 	}
 
 	if req.RoleIds != nil {
-		_ = s.userRepo.ReplaceRoles(user.ID, req.RoleIds)
+		if err := s.userRepo.ReplaceRoles(user.ID, req.RoleIds); err != nil {
+			return err
+		}
 	}
 	if req.PostIds != nil {
-		_ = s.userRepo.ReplacePosts(user.ID, req.PostIds)
+		if err := s.userRepo.ReplacePosts(user.ID, req.PostIds); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -140,9 +148,15 @@ func (s *userService) FindByID(tenantID, id uint) (interface{}, error) {
 		Roles []vo.RoleInfo `json:"roles"`
 	}
 
-	roleIDs, _ := s.userRepo.FindRoleIDsByUserID(user.ID)
+	roleIDs, err := s.userRepo.FindRoleIDsByUserID(user.ID)
+	if err != nil {
+		return nil, err
+	}
 	roleService := NewRoleService()
-	roles, _ := roleService.FindByIDs(roleIDs)
+	roles, err := roleService.FindByIDs(tenantID, roleIDs)
+	if err != nil {
+		return nil, err
+	}
 	roleInfos := make([]vo.RoleInfo, 0, len(roles))
 	for _, r := range roles {
 		roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
@@ -169,14 +183,51 @@ func (s *userService) FindList(tenantID uint, req *dto.UserListRequest) ([]inter
 		Roles []vo.RoleInfo `json:"roles"`
 	}
 
-	roleService := NewRoleService()
 	result := make([]interface{}, len(users))
-	for i, u := range users {
-		roleIDs, _ := s.userRepo.FindRoleIDsByUserID(u.ID)
-		roles, _ := roleService.FindByIDs(roleIDs)
-		roleInfos := make([]vo.RoleInfo, 0, len(roles))
+	if len(users) == 0 {
+		return result, total, nil
+	}
+
+	// 批量加载角色关系与角色详情，把 2N+1 次查询压缩为固定 3 次
+	userIDs := make([]uint, 0, len(users))
+	for _, u := range users {
+		userIDs = append(userIDs, u.ID)
+	}
+
+	roleIDsByUser, err := s.userRepo.FindRoleIDsByUserIDs(userIDs)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	roleIDSet := make(map[uint]struct{})
+	for _, ids := range roleIDsByUser {
+		for _, id := range ids {
+			roleIDSet[id] = struct{}{}
+		}
+	}
+	distinctRoleIDs := make([]uint, 0, len(roleIDSet))
+	for id := range roleIDSet {
+		distinctRoleIDs = append(distinctRoleIDs, id)
+	}
+
+	roleByID := make(map[uint]model.SysRole, len(distinctRoleIDs))
+	if len(distinctRoleIDs) > 0 {
+		roles, err := NewRoleService().FindByIDs(tenantID, distinctRoleIDs)
+		if err != nil {
+			return nil, 0, err
+		}
 		for _, r := range roles {
-			roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
+			roleByID[r.ID] = r
+		}
+	}
+
+	for i, u := range users {
+		ids := roleIDsByUser[u.ID]
+		roleInfos := make([]vo.RoleInfo, 0, len(ids))
+		for _, rid := range ids {
+			if r, ok := roleByID[rid]; ok {
+				roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
+			}
 		}
 		result[i] = userWithRoles{SysUser: u, Roles: roleInfos}
 	}

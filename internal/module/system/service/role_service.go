@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
+	"go-admin/internal/middleware"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
@@ -12,14 +14,14 @@ import (
 )
 
 type RoleService interface {
-	Create(req *dto.CreateRoleRequest, operatorID uint) error
-	Update(req *dto.UpdateRoleRequest, operatorID uint) error
-	Delete(id uint) error
-	FindByID(id uint) (interface{}, error)
-	FindByIDs(ids []uint) ([]model.SysRole, error)
-	FindList(req *dto.RoleListRequest) ([]interface{}, int64, error)
-	UpdateStatus(req *dto.StatusRequest) error
-	FindAll() ([]model.SysRole, error)
+	Create(req *dto.CreateRoleRequest, operatorID, tenantID uint) error
+	Update(req *dto.UpdateRoleRequest, operatorID, tenantID uint) error
+	Delete(tenantID, id uint) error
+	FindByID(tenantID, id uint) (interface{}, error)
+	FindByIDs(tenantID uint, ids []uint) ([]model.SysRole, error)
+	FindList(tenantID uint, req *dto.RoleListRequest) ([]interface{}, int64, error)
+	UpdateStatus(tenantID uint, req *dto.StatusRequest) error
+	FindAll(tenantID uint) ([]model.SysRole, error)
 }
 
 type roleService struct {
@@ -32,8 +34,8 @@ func NewRoleService() RoleService {
 	}
 }
 
-func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID uint) error {
-	if s.roleRepo.CountByCode(req.Code, 0) > 0 {
+func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID, tenantID uint) error {
+	if s.roleRepo.CountByCode(tenantID, req.Code, 0) > 0 {
 		return errors.New("角色编码已存在")
 	}
 
@@ -43,6 +45,7 @@ func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID uint) error 
 				CreateBy: operatorID,
 				UpdateBy: operatorID,
 			},
+			TenantID: tenantID,
 		},
 		Name:      req.Name,
 		Code:      req.Code,
@@ -57,18 +60,21 @@ func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID uint) error 
 	}
 
 	if len(req.MenuIds) > 0 {
-		_ = s.roleRepo.ReplaceMenus(role.ID, req.MenuIds)
+		if err := s.roleRepo.ReplaceMenus(tenantID, role.ID, req.MenuIds); err != nil {
+			return err
+		}
+		s.syncPolicies()
 	}
 
 	return nil
 }
 
-func (s *roleService) Update(req *dto.UpdateRoleRequest, operatorID uint) error {
-	if s.roleRepo.CountByCode(req.Code, req.ID) > 0 {
+func (s *roleService) Update(req *dto.UpdateRoleRequest, operatorID, tenantID uint) error {
+	if s.roleRepo.CountByCode(tenantID, req.Code, req.ID) > 0 {
 		return errors.New("角色编码已存在")
 	}
 
-	role, err := s.roleRepo.FindByID(req.ID)
+	role, err := s.roleRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("角色不存在")
@@ -84,30 +90,45 @@ func (s *roleService) Update(req *dto.UpdateRoleRequest, operatorID uint) error 
 	role.Remark = req.Remark
 	role.UpdateBy = operatorID
 
-	if err := s.roleRepo.Update(role); err != nil {
+	if err := s.roleRepo.Update(tenantID, role); err != nil {
 		return err
 	}
 
 	if req.MenuIds != nil {
-		_ = s.roleRepo.ReplaceMenus(role.ID, req.MenuIds)
+		if err := s.roleRepo.ReplaceMenus(tenantID, role.ID, req.MenuIds); err != nil {
+			return err
+		}
+		s.syncPolicies()
 	}
 
 	return nil
 }
 
-func (s *roleService) Delete(id uint) error {
-	return s.roleRepo.Delete(id)
+func (s *roleService) Delete(tenantID, id uint) error {
+	if err := s.roleRepo.Delete(tenantID, id); err != nil {
+		return err
+	}
+	s.syncPolicies()
+	return nil
 }
 
-func (s *roleService) FindByID(id uint) (interface{}, error) {
-	return s.roleRepo.FindByID(id)
+// syncPolicies 角色-菜单授权关系变更后重建 Casbin 策略，使权限立即生效。
+// 失败仅记录日志：授权数据已落库，下次启动会重新同步。
+func (s *roleService) syncPolicies() {
+	if err := middleware.SyncPoliciesFromRoleMenus(); err != nil {
+		logger.Log.Errorf("同步权限策略失败: %v", err)
+	}
 }
 
-func (s *roleService) FindByIDs(ids []uint) ([]model.SysRole, error) {
-	return s.roleRepo.FindByIDs(ids)
+func (s *roleService) FindByID(tenantID, id uint) (interface{}, error) {
+	return s.roleRepo.FindByID(tenantID, id)
 }
 
-func (s *roleService) FindList(req *dto.RoleListRequest) ([]interface{}, int64, error) {
+func (s *roleService) FindByIDs(tenantID uint, ids []uint) ([]model.SysRole, error) {
+	return s.roleRepo.FindByIDs(tenantID, ids)
+}
+
+func (s *roleService) FindList(tenantID uint, req *dto.RoleListRequest) ([]interface{}, int64, error) {
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -115,7 +136,7 @@ func (s *roleService) FindList(req *dto.RoleListRequest) ([]interface{}, int64, 
 		req.PageSize = 10
 	}
 
-	roles, total, err := s.roleRepo.FindList(req.Name, req.Code, req.Status, req.Page, req.PageSize)
+	roles, total, err := s.roleRepo.FindList(tenantID, req.Name, req.Code, req.Status, req.Page, req.PageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -127,11 +148,11 @@ func (s *roleService) FindList(req *dto.RoleListRequest) ([]interface{}, int64, 
 	return result, total, nil
 }
 
-func (s *roleService) UpdateStatus(req *dto.StatusRequest) error {
-	return s.roleRepo.UpdateStatus(req.ID, req.Status)
+func (s *roleService) UpdateStatus(tenantID uint, req *dto.StatusRequest) error {
+	return s.roleRepo.UpdateStatus(tenantID, req.ID, req.Status)
 }
 
-func (s *roleService) FindAll() ([]model.SysRole, error) {
-	roles, _, err := s.roleRepo.FindList("", "", nil, 1, 1000)
+func (s *roleService) FindAll(tenantID uint) ([]model.SysRole, error) {
+	roles, _, err := s.roleRepo.FindList(tenantID, "", "", nil, 1, 1000)
 	return roles, err
 }

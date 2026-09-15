@@ -26,7 +26,8 @@ func (ctl *RoleController) Create(c *gin.Context) {
 	}
 
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.roleService.Create(&req, operatorID); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.roleService.Create(&req, operatorID, tenantID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -42,7 +43,8 @@ func (ctl *RoleController) Update(c *gin.Context) {
 	}
 
 	operatorID := common.GetCurrentUserID(c)
-	if err := ctl.roleService.Update(&req, operatorID); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.roleService.Update(&req, operatorID, tenantID); err != nil {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
@@ -57,7 +59,8 @@ func (ctl *RoleController) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := ctl.roleService.Delete(id); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.roleService.Delete(tenantID, id); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -72,7 +75,8 @@ func (ctl *RoleController) FindByID(c *gin.Context) {
 		return
 	}
 
-	role, err := ctl.roleService.FindByID(id)
+	tenantID := common.GetTenantID(c)
+	role, err := ctl.roleService.FindByID(tenantID, id)
 	if err != nil {
 		common.Error(c, common.CodeNotFound, "角色不存在")
 		return
@@ -88,7 +92,8 @@ func (ctl *RoleController) FindList(c *gin.Context) {
 		return
 	}
 
-	roles, total, err := ctl.roleService.FindList(&req)
+	tenantID := common.GetTenantID(c)
+	roles, total, err := ctl.roleService.FindList(tenantID, &req)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
@@ -104,7 +109,8 @@ func (ctl *RoleController) UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	if err := ctl.roleService.UpdateStatus(&req); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.roleService.UpdateStatus(tenantID, &req); err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}
@@ -113,7 +119,8 @@ func (ctl *RoleController) UpdateStatus(c *gin.Context) {
 }
 
 func (ctl *RoleController) FindAll(c *gin.Context) {
-	roles, err := ctl.roleService.FindAll()
+	tenantID := common.GetTenantID(c)
+	roles, err := ctl.roleService.FindAll(tenantID)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return

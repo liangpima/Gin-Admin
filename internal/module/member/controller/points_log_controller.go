@@ -32,7 +32,8 @@ func (ctl *PointsLogController) FindList(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
-	list, total, err := ctl.pointsLogService.FindList(&req)
+	tenantID := common.GetTenantID(c)
+	list, total, err := ctl.pointsLogService.FindList(tenantID, &req)
 	if err != nil {
 		common.Error(c, common.CodeInternalError, err.Error())
 		return

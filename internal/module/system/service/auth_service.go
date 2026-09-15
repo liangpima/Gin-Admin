@@ -44,17 +44,19 @@ func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
 	user, err := s.userRepo.FindByUsernameForAuth(req.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("用户不存在")
+			// 与密码错误返回相同信息，避免通过错误提示枚举用户名
+			return nil, errors.New("用户名或密码错误")
 		}
 		return nil, err
 	}
 
-	if user.Status == common.StatusDisabled {
-		return nil, errors.New("用户已被禁用")
+	// 先校验密码，再检查账号状态，避免未通过验证即暴露账号状态
+	if !utils.CheckPassword(req.Password, user.Password) {
+		return nil, errors.New("用户名或密码错误")
 	}
 
-	if !utils.CheckPassword(req.Password, user.Password) {
-		return nil, errors.New("密码错误")
+	if user.Status == common.StatusDisabled {
+		return nil, errors.New("用户已被禁用")
 	}
 
 	accessToken, err := auth.GenerateAccessToken(user.ID, user.Username, user.TenantID, user.DeptID)
@@ -85,7 +87,7 @@ func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
 }
 
 func (s *authService) RefreshToken(req *dto.RefreshTokenRequest) (*vo.LoginResponse, error) {
-	claims, err := auth.ParseToken(req.RefreshToken)
+	claims, err := auth.ParseRefreshToken(req.RefreshToken)
 	if err != nil {
 		return nil, errors.New("refresh token无效")
 	}
@@ -138,7 +140,7 @@ func (s *authService) GetUserInfo(userID uint) (*vo.UserInfoResponse, error) {
 
 	roles := make([]vo.RoleInfo, 0, len(roleIDs))
 	if len(roleIDs) > 0 {
-		userRoles, err := s.roleService.FindByIDs(roleIDs)
+		userRoles, err := s.roleService.FindByIDs(0, roleIDs)
 		if err == nil {
 			for _, r := range userRoles {
 				roles = append(roles, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})

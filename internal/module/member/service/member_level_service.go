@@ -10,11 +10,11 @@ import (
 )
 
 type MemberLevelService interface {
-	Create(req *dto.CreateMemberLevelRequest, operatorID uint) error
-	Update(req *dto.UpdateMemberLevelRequest, operatorID uint) error
-	Delete(id uint) error
-	FindList(req *dto.MemberLevelListRequest) ([]model.MemberLevel, int64, error)
-	FindAll() ([]model.MemberLevel, error)
+	Create(req *dto.CreateMemberLevelRequest, operatorID, tenantID uint) error
+	Update(req *dto.UpdateMemberLevelRequest, operatorID, tenantID uint) error
+	Delete(tenantID, id uint) error
+	FindList(tenantID uint, req *dto.MemberLevelListRequest) ([]model.MemberLevel, int64, error)
+	FindAll(tenantID uint) ([]model.MemberLevel, error)
 }
 
 type memberLevelService struct {
@@ -27,13 +27,14 @@ func NewMemberLevelService() MemberLevelService {
 	}
 }
 
-func (s *memberLevelService) Create(req *dto.CreateMemberLevelRequest, operatorID uint) error {
+func (s *memberLevelService) Create(req *dto.CreateMemberLevelRequest, operatorID, tenantID uint) error {
 	level := &model.MemberLevel{
 		TenantBaseModel: common.TenantBaseModel{
 			BaseModel: common.BaseModel{
 				CreateBy: operatorID,
 				UpdateBy: operatorID,
 			},
+			TenantID: tenantID,
 		},
 		Name:      req.Name,
 		MinPoints: req.MinPoints,
@@ -45,8 +46,8 @@ func (s *memberLevelService) Create(req *dto.CreateMemberLevelRequest, operatorI
 	return s.levelRepo.Create(level)
 }
 
-func (s *memberLevelService) Update(req *dto.UpdateMemberLevelRequest, operatorID uint) error {
-	level, err := s.levelRepo.FindByID(req.ID)
+func (s *memberLevelService) Update(req *dto.UpdateMemberLevelRequest, operatorID, tenantID uint) error {
+	level, err := s.levelRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		return errors.New("等级不存在")
 	}
@@ -57,23 +58,23 @@ func (s *memberLevelService) Update(req *dto.UpdateMemberLevelRequest, operatorI
 	level.Sort = req.Sort
 	level.Status = req.Status
 	level.UpdateBy = operatorID
-	return s.levelRepo.Update(level)
+	return s.levelRepo.Update(tenantID, level)
 }
 
-func (s *memberLevelService) Delete(id uint) error {
-	return s.levelRepo.Delete(id)
+func (s *memberLevelService) Delete(tenantID, id uint) error {
+	return s.levelRepo.Delete(tenantID, id)
 }
 
-func (s *memberLevelService) FindList(req *dto.MemberLevelListRequest) ([]model.MemberLevel, int64, error) {
+func (s *memberLevelService) FindList(tenantID uint, req *dto.MemberLevelListRequest) ([]model.MemberLevel, int64, error) {
 	if req.Page < 1 {
 		req.Page = 1
 	}
 	if req.PageSize < 1 || req.PageSize > 100 {
 		req.PageSize = 10
 	}
-	return s.levelRepo.FindList(req.Name, req.Page, req.PageSize)
+	return s.levelRepo.FindList(tenantID, req.Name, req.Page, req.PageSize)
 }
 
-func (s *memberLevelService) FindAll() ([]model.MemberLevel, error) {
-	return s.levelRepo.FindAll()
+func (s *memberLevelService) FindAll(tenantID uint) ([]model.MemberLevel, error) {
+	return s.levelRepo.FindAll(tenantID)
 }
