@@ -61,3 +61,6 @@ temp/
 # AI 工具工作目录（本地记忆与缓存，不属于项目代码）
 .workbuddy-ai/
 .mimocode/
+
+# 代码审查报告：含漏洞细节与攻击路径，仅保留本地，不提交到公开仓库
+docs/code-review-*.md
