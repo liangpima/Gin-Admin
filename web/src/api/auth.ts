@@ -4,6 +4,8 @@ import type { Result } from './index'
 export interface LoginParams {
   username: string
   password: string
+  /** 验证码校验通过后返回的 token，后端据此确认本次登录已过人机校验 */
+  captchaToken: string
 }
 
 export interface LoginResult {
@@ -33,8 +35,8 @@ export function refreshToken(data: { refreshToken: string }) {
   return request.post<any, Result<LoginResult>>('/auth/refresh', data)
 }
 
-export function logout() {
-  return request.post<any, Result>('/auth/logout')
+export function logout(refreshToken?: string) {
+  return request.post<any, Result>('/auth/logout', { refreshToken })
 }
 
 export function getUserInfo() {

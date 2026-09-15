@@ -12,7 +12,7 @@ type SysOperationLog struct {
 	RequestMethod string    `gorm:"type:varchar(10);comment:HTTP方法" json:"requestMethod"`
 	RequestURL    string    `gorm:"type:varchar(500);comment:请求URL" json:"requestUrl"`
 	RequestParam  string    `gorm:"type:text;comment:请求参数（敏感字段已脱敏）" json:"requestParam"`
-	Status        int8      `gorm:"type:tinyint;default:1;comment:状态 0失败 1成功" json:"status"`
+	Status        int8      `gorm:"type:tinyint;comment:状态 0失败 1成功" json:"status"`
 	ErrorMsg      string    `gorm:"type:text;comment:错误消息" json:"errorMsg"`
 	IP            string    `gorm:"type:varchar(128);comment:操作IP" json:"ip"`
 	UserAgent     string    `gorm:"type:varchar(500);comment:浏览器UA" json:"userAgent"`
@@ -33,7 +33,7 @@ type SysLoginLog struct {
 	IP        string    `gorm:"type:varchar(128);comment:登录IP" json:"ip"`
 	Browser   string    `gorm:"type:varchar(128);comment:浏览器" json:"browser"`
 	OS        string    `gorm:"type:varchar(128);comment:操作系统" json:"os"`
-	Status    int8      `gorm:"type:tinyint;default:1;comment:状态 0失败 1成功" json:"status"`
+	Status    int8      `gorm:"type:tinyint;comment:状态 0失败 1成功" json:"status"`
 	Msg       string    `gorm:"type:varchar(255);comment:消息" json:"msg"`
 	LoginTime time.Time `gorm:"comment:登录时间" json:"loginTime"`
 }

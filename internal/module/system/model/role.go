@@ -9,8 +9,8 @@ type SysRole struct {
 	Name      string    `gorm:"type:varchar(64);comment:角色名称" json:"name"`
 	Code      string    `gorm:"type:varchar(64);uniqueIndex;comment:角色编码" json:"code"`
 	Sort      int       `gorm:"type:int;default:0;comment:排序" json:"sort"`
-	Status    int8      `gorm:"type:tinyint;default:1;comment:状态" json:"status"`
-	DataScope int8      `gorm:"type:tinyint;default:1;comment:数据权限范围" json:"dataScope"`
+	Status    int8      `gorm:"type:tinyint;comment:状态" json:"status"`
+	DataScope int8      `gorm:"type:tinyint;comment:数据权限范围" json:"dataScope"`
 }
 
 func (SysRole) TableName() string {

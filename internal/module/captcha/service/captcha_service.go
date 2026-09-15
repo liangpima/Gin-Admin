@@ -126,11 +126,47 @@ func (s *captchaService) Verify(token string, points []model.Point) (*model.Capt
 	}
 
 	newToken := generateToken()
+
+	// 记录「该 token 已通过人机校验」。
+	//
+	// 校验结果必须落盘，否则前端拿到的 newToken 只是一个无意义的随机串 ——
+	// 登录接口无从判断它是否真的通过过验证，攻击者直接 POST /auth/login
+	// 就能完全绕过验证码，人机校验形同虚设。
+	if err := cache.Set(context.Background(), verifiedKey(newToken), "1", captchaExpiry); err != nil {
+		return &model.CaptchaVerifyResponse{
+			Success: false,
+			Message: "验证状态保存失败，请重试",
+		}, nil
+	}
+
 	return &model.CaptchaVerifyResponse{
 		Success: true,
 		Token:   newToken,
 		Message: "验证成功",
 	}, nil
+}
+
+func verifiedKey(token string) string {
+	return captchaPrefix + "verified:" + token
+}
+
+// ConsumeVerifiedToken 消费一次性的人机校验凭证。
+//
+// 登录接口调用：凭证存在则删除并返回 true（一次性，防止重放），
+// 不存在说明未通过验证或已用过，返回 false。
+func ConsumeVerifiedToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	ctx := context.Background()
+	key := verifiedKey(token)
+
+	exists, err := cache.Exists(ctx, key)
+	if err != nil || !exists {
+		return false
+	}
+	_ = cache.Del(ctx, key)
+	return true
 }
 
 // randomChars 从字符池中不重复地随机抽取 n 个字符。

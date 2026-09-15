@@ -139,3 +139,58 @@ func tail(s string, n int) string {
 	}
 	return string(runes[len(runes)-n:])
 }
+
+// TestSanitizeRequestBodyMasksSiblingValue 验证「名称 + 取值」分离结构的脱敏。
+//
+// 配置批量保存的 body 形如 {"items":[{"key":"secret_key","value":"真实密钥"}]}，
+// 密钥放在通用的 value 字段里，必须结合同级的 key 判断是否敏感。
+// 回归用例：该场景曾导致 OSS/支付密钥明文落库。
+func TestSanitizeRequestBodyMasksSiblingValue(t *testing.T) {
+	body := []byte(`{"prefix":"oss.","items":[{"key":"secret_key","value":"REAL_SECRET_1"},{"key":"access_key","value":"REAL_AK_2"}]}`)
+
+	got := sanitizeRequestBody(body)
+
+	if strings.Contains(got, "REAL_SECRET_1") || strings.Contains(got, "REAL_AK_2") {
+		t.Fatalf("配置密钥未被脱敏（密钥会明文落库）: %s", got)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
+		t.Fatalf("脱敏结果不是合法 JSON: %v (结果=%s)", err, got)
+	}
+	items, ok := parsed["items"].([]interface{})
+	if !ok || len(items) != 2 {
+		t.Fatalf("items 结构异常: %v", parsed["items"])
+	}
+	for _, it := range items {
+		m, ok := it.(map[string]interface{})
+		if !ok {
+			t.Fatalf("item 结构异常: %v", it)
+		}
+		if m["value"] != maskedValue {
+			t.Errorf("敏感配置项的 value 应被脱敏，实际 %v", m["value"])
+		}
+	}
+}
+
+// TestSanitizeRequestBodyKeepsNonSensitiveConfigValue 非敏感配置项的值不应被误脱敏
+func TestSanitizeRequestBodyKeepsNonSensitiveConfigValue(t *testing.T) {
+	body := []byte(`{"prefix":"site.","items":[{"key":"name","value":"我的网站"}]}`)
+
+	got := sanitizeRequestBody(body)
+
+	if !strings.Contains(got, "我的网站") {
+		t.Errorf("非敏感配置项的值不应被脱敏: %s", got)
+	}
+}
+
+// TestSanitizeRequestBodyNestedJSONString 验证把 JSON 当字符串传递时也能脱敏
+func TestSanitizeRequestBodyNestedJSONString(t *testing.T) {
+	body := []byte(`{"data":"{\"password\":\"PWD_IN_STRING\"}"}`)
+
+	got := sanitizeRequestBody(body)
+
+	if strings.Contains(got, "PWD_IN_STRING") {
+		t.Errorf("嵌套 JSON 字符串中的敏感值未被脱敏: %s", got)
+	}
+}

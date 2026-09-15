@@ -63,7 +63,7 @@
           </el-form-item>
 
           <el-form-item>
-            <ClickCaptcha @success="onCaptchaSuccess" />
+            <ClickCaptcha ref="captchaRef" @success="onCaptchaSuccess" />
           </el-form-item>
 
           <el-button
@@ -97,6 +97,7 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const loginFormRef = ref<FormInstance>()
+const captchaRef = ref<InstanceType<typeof ClickCaptcha>>()
 const loading = ref(false)
 const captchaVerified = ref(false)
 const captchaToken = ref('')
@@ -134,6 +135,12 @@ function onCaptchaSuccess(token: string) {
   captchaToken.value = token
 }
 
+function resetCaptcha() {
+  captchaVerified.value = false
+  captchaToken.value = ''
+  captchaRef.value?.refresh()
+}
+
 async function handleLogin() {
   const valid = await loginFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -145,13 +152,13 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    await userStore.login(loginForm.username, loginForm.password)
+    await userStore.login(loginForm.username, loginForm.password, captchaToken.value)
     ElMessage.success('登录成功')
     router.push('/')
   } catch (err: any) {
     ElMessage.error(err.message || '登录失败')
-    captchaVerified.value = false
-    captchaToken.value = ''
+    // 验证码一次性，登录失败后必须重新验证
+    resetCaptcha()
   } finally {
     loading.value = false
   }

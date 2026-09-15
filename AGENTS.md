@@ -385,8 +385,22 @@ make deps                      # 整理依赖
 - JWT Secret 通过环境变量 `JWT_SECRET` 注入，禁止硬编码；**生产环境（mode=release）若仍为默认值将拒绝启动**
 - Access Token 有效期 2 小时，Refresh Token 7 天；两者 Issuer 不同，`ParseToken` 只接受 Access Token，`ParseRefreshToken` 只接受 Refresh Token
 - 登录限频：**IP 与账号双维度**各 5 次失败后锁定 15 分钟（仅在失败时计数，登录成功则清零）
-- 密码修改/用户禁用后自动吊销所有 Token（Redis 黑名单）
+- 密码修改/用户禁用后自动吊销所有 Token（`userService.revokeUserTokens`）
 - 退出登录时将 Access Token 加入 Redis 黑名单（`cache.RevokeToken`），Auth 中间件检查 `IsTokenRevoked`
+- **Refresh Token 必须登记用户维度索引**：登录/刷新轮换时写入 `cache.RefreshTokenSetKey(userID)`（Redis Set）。
+  Refresh Token 本身是随机串，没有这个索引就无法按用户批量吊销 —— 改密/禁用/登出都会静默失效。
+  吊销时：`SMembers` 取全部 token → 逐个删 `cache.RefreshTokenKey(token)` → 删集合
+- **`AuthService.Logout` 的 userID 来自 JWT claims，不要把 access token 当 refresh token 传**
+  （历史 bug：拿 access token 去拼 `refresh_token:<accessToken>`，删了一个不存在的键）
+
+### 登录验证码
+
+- 登录**强制**要求 `captchaToken`（`LoginRequest.CaptchaToken` 为 `binding:"required"`）
+- 流程：`GET /api/v1/captcha/generate` → `POST /api/v1/captcha/verify` → 用返回的 token 调 `/auth/login`
+- `captchaService.Verify` 成功时写入一次性凭证 `captcha:verified:<token>`（5 分钟）；
+  登录用 `captchaService.ConsumeVerifiedToken()` 校验并消费，凭证不可复用
+- ⚠️ **禁止在 Controller 里对同一个请求体做两次 `ShouldBindJSON`**：请求体读完即耗尽，
+  第二次绑定必然失败。若错误被 `_ =` 丢弃，整个校验分支会变成永不执行的死代码（历史 bug）
 - **RBAC 已启用**：主体为角色 code，策略由 `sys_role_menu` + `sys_menu.permission` 自动生成（见规则13）；
   角色 `admin` 始终持有 `*` 通配策略；未登记权限码的路由默认拒绝
 - 登录失败统一返回「用户名或密码错误」，避免用户名枚举
@@ -409,6 +423,9 @@ make deps                      # 整理依赖
 - 扩展名白名单校验（jpg/png/gif/bmp/svg/webp/mp4/mov/mp3/pdf/doc/xls/ppt/zip 等）
 - 危险扩展名拦截（php/exe/sh/bat/js/vbs 等）
 - 文件大小限制从 `config.yaml` 的 `upload.max_size` 读取（单位 MB），默认 10MB
+- `/uploads` 为匿名可读的静态目录，由 `middleware.UploadSecurity()` 补 CSP 沙箱响应头防御 SVG XSS
+- **密钥/证书类文件禁止存放在 `uploads/` 下** —— 该目录匿名可读。证书上传写入 `runtime/certs/`
+- 拼接上传目录路径做删除时必须做穿越校验（Clean + 拒绝绝对路径/`..` + 拼接后前缀校验）
 
 ### CORS 配置
 
@@ -418,10 +435,21 @@ make deps                      # 整理依赖
 
 ### 支付安全
 
-- 微信支付回调验签已实现（平台证书获取 + RSA 验签）
+- 微信支付回调验签已实现（平台证书获取 + RSA 验签，证书带 10 分钟缓存）
+- 微信 APIv3 **请求签名串 = `方法\n路径(含query)\n时间戳\n随机串\n报文主体\n`**。
+  两个易错点：URL 必须去掉协议与域名（用 `canonicalURL()`）；**报文主体必须参与签名**，
+  漏掉 body 会让下单/退款全部 401，且因证书拉取也走同一签名函数，回调验签会连带失效
 - 支付宝回调验签已实现
 - 回调金额校验（防止金额篡改）
+- **金额换算禁止用浮点**：`int64(amt*100)` 会因表示误差少 1 分（19.99 → 1998），
+  导致回调判定「支付金额不匹配」。统一用 `yuanToFen()` 按字符串拆分
 - returnURL 开放重定向防护（协议和主机名校验）
+
+### 依赖
+
+- **Redis 是启动强依赖**，初始化失败直接退出。它承载 refresh token 存储、token 黑名单、
+  登录限频、验证码与角色缓存；注释里的「可选」是历史误导
+- MySQL 同理，失败即退出
 
 ### 敏感配置
 
@@ -437,7 +465,9 @@ export REDIS_PASSWORD="your_redis_password"
   会打码为 `******`；**服务内部读取真实值必须用 `ConfigService.FindByPrefixRaw()`**
 - `BatchSave` 会跳过值为 `******` 的项，因此前端原样回传占位符不会覆盖真实密钥
 - 新增支付/存储类密钥时，配置项 key 应包含上述关键词，以便自动纳入打码
-- **操作日志会自动脱敏请求体**：`middleware/operation_log.go` 的 `sensitiveBodyFields`
+- **操作日志会自动脱敏请求体**：`middleware/operation_log.go` 的 `sensitiveNameFragments`
+  （匹配 password / secret / token / privatekey / accesskey / apiv3key / pem 等片段），
+  并识别 `{"key":"secret_key","value":"真实值"}` 这种「名称 + 取值」分离的结构
   命中 `password / oldpassword / newpassword / secret / privatekey / accesskey / apiv3key / token` 等
   字段名即替换为 `******`，非 JSON 请求体不记录内容，整体按 2000 字截断。
   新增接口若含其他敏感字段，需把字段名加入该 map

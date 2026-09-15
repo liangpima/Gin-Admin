@@ -16,10 +16,10 @@ type SysMenu struct {
 	Type       int8      `gorm:"type:tinyint;comment:类型 0目录 1菜单 2按钮" json:"type"`
 	Permission string    `gorm:"type:varchar(200);comment:权限标识" json:"permission"`
 	Sort       int       `gorm:"type:int;default:0;comment:排序" json:"sort"`
-	Visible    int8      `gorm:"type:tinyint;default:1;comment:是否可见" json:"visible"`
-	Status     int8      `gorm:"type:tinyint;default:1;comment:状态" json:"status"`
+	Visible    int8      `gorm:"type:tinyint;comment:是否可见" json:"visible"`
+	Status     int8      `gorm:"type:tinyint;comment:状态" json:"status"`
 	IsExternal int8      `gorm:"type:tinyint;default:0;comment:是否外链" json:"isExternal"`
-	IsCache    int8      `gorm:"type:tinyint;default:1;comment:是否缓存" json:"isCache"`
+	IsCache    int8      `gorm:"type:tinyint;comment:是否缓存" json:"isCache"`
 	Children   []SysMenu `gorm:"-" json:"children"`
 }
 

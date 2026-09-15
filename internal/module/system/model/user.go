@@ -14,7 +14,7 @@ type SysUser struct {
 	Email     string     `gorm:"type:varchar(128);comment:邮箱" json:"email"`
 	Phone     string     `gorm:"type:varchar(16);comment:手机号" json:"phone"`
 	Avatar    string     `gorm:"type:varchar(512);comment:头像" json:"avatar"`
-	Status    int8       `gorm:"type:tinyint;default:1;comment:状态 0停用 1正常" json:"status"`
+	Status    int8       `gorm:"type:tinyint;comment:状态 0停用 1正常" json:"status"`
 	DeptID    uint       `gorm:"comment:部门ID" json:"deptId"`
 	LoginIP   string     `gorm:"type:varchar(128);comment:最后登录IP" json:"loginIp"`
 	LoginTime *time.Time `gorm:"comment:最后登录时间" json:"loginTime"`

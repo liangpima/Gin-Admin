@@ -61,8 +61,13 @@ func main() {
 		logger.Log.Fatalf("初始化数据库失败: %v", err)
 	}
 
+	// Redis 是**必需**依赖，不可降级：它承载 refresh token 存储、token 黑名单、
+	// 登录失败限频、验证码与角色缓存。登录流程本身就会写 refresh token，
+	// Redis 不可用时登录直接失败；若这里只告警而继续启动，
+	// cache.RDB 为 nil 会让后续每次调用空指针 panic，被 Recovery 兜成 500，
+	// 相当于全站不可用且错误信息毫无指向性。失败即退出。
 	if err := cache.Init(); err != nil {
-		logger.Log.Warnf("初始化Redis失败(可选): %v", err)
+		logger.Log.Fatalf("初始化Redis失败: %v", err)
 	}
 
 	// 初始化 Casbin 权限模型并同步策略。

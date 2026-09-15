@@ -303,13 +303,13 @@ CREATE TABLE IF NOT EXISTS `sys_user_post` (
 -- v0=角色code  v1=域(固定 default)  v2=API路径(* 为通配)  v3=HTTP方法(* 为通配)
 CREATE TABLE IF NOT EXISTS `casbin_rule` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `ptype` varchar(100) DEFAULT '' COMMENT '策略类型，p=权限策略',
-  `v0` varchar(100) DEFAULT '' COMMENT '角色code',
-  `v1` varchar(100) DEFAULT '' COMMENT '域，固定 default',
-  `v2` varchar(100) DEFAULT '' COMMENT 'API路径，* 表示全部',
-  `v3` varchar(100) DEFAULT '' COMMENT 'HTTP方法，* 表示全部',
-  `v4` varchar(100) DEFAULT '',
-  `v5` varchar(100) DEFAULT '',
+  `ptype` varchar(200) DEFAULT '' COMMENT '策略类型，p=权限策略',
+  `v0` varchar(200) DEFAULT '' COMMENT '角色code',
+  `v1` varchar(200) DEFAULT '' COMMENT '域，固定 default',
+  `v2` varchar(200) DEFAULT '' COMMENT '权限码，* 表示全部',
+  `v3` varchar(200) DEFAULT '' COMMENT 'HTTP方法，* 表示全部',
+  `v4` varchar(200) DEFAULT '',
+  `v5` varchar(200) DEFAULT '',
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_casbin_rule` (`ptype`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Casbin权限策略表';
@@ -495,10 +495,14 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `name`, `path`, `component`, `
 (15, 1, 'File', 'file', 'system/file/index', 'Upload', '附件管理', 1, 'system:file:list', 9, 1, 1, 1, 0, 1, 1),
 -- 系统设置
 (10, 0, 'Settings', '/settings', '', 'Tools', '系统设置', 0, '', 3, 1, 1, 1, 0, 1, 1),
-(11, 10, 'SiteSettings', 'site', 'settings/site', 'Position', '网站设置', 1, 'system:settings:site', 1, 1, 1, 1, 0, 1, 1),
-(12, 10, 'PaymentSettings', 'payment', 'settings/payment', 'Wallet', '支付设置', 1, 'system:settings:payment', 2, 1, 1, 1, 0, 1, 1),
-(13, 10, 'OSSSettings', 'oss', 'settings/oss', 'FolderOpened', 'OSS存储设置', 1, 'system:settings:oss', 3, 1, 1, 1, 0, 1, 1),
-(14, 10, 'SMSSettings', 'sms', 'settings/sms', 'Message', '短信设置', 1, 'system:settings:sms', 4, 1, 1, 1, 0, 1, 1),
+-- 设置类页面本质是对 sys_config 按前缀的读写，因此菜单权限码必须与它实际调用的接口
+-- （GET /system/config/prefix → system:config:list，PUT /system/config/batch → system:config:edit）
+-- 保持一致。早前这里用 system:settings:* —— 该码没有任何接口使用，
+-- 导致非 admin 角色勾选了设置菜单仍然 403（能进页面但读不到配置、也存不了）。
+(11, 10, 'SiteSettings', 'site', 'settings/site', 'Position', '网站设置', 1, 'system:config:list', 1, 1, 1, 1, 0, 1, 1),
+(12, 10, 'PaymentSettings', 'payment', 'settings/payment', 'Wallet', '支付设置', 1, 'system:config:list', 2, 1, 1, 1, 0, 1, 1),
+(13, 10, 'OSSSettings', 'oss', 'settings/oss', 'FolderOpened', 'OSS存储设置', 1, 'system:config:list', 3, 1, 1, 1, 0, 1, 1),
+(14, 10, 'SMSSettings', 'sms', 'settings/sms', 'Message', '短信设置', 1, 'system:config:list', 4, 1, 1, 1, 0, 1, 1),
 (150, 10, 'Agreement', 'agreement', 'settings/agreement', 'Document', '协议管理', 1, 'system:agreement:list', 5, 1, 1, 1, 0, 1, 1),
 -- 支付管理
 (16, 0, 'Payment', '/payment', '', 'Wallet', '支付管理', 0, '', 4, 1, 1, 1, 0, 1, 1),
@@ -547,7 +551,13 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `name`, `path`, `component`, `
 (421, 23, 'MemberTagEdit', '', '', '', '编辑', 2, 'member:tag:edit', 2, 1, 1, 1, 0, 1, 1),
 (422, 23, 'MemberTagDelete', '', '', '', '删除', 2, 'member:tag:delete', 3, 1, 1, 1, 0, 1, 1),
 (430, 17, 'PayOrderRefund', '', '', '', '退款', 2, 'payment:order:refund', 1, 1, 1, 1, 0, 1, 1),
-(431, 17, 'PayOrderClose', '', '', '', '关闭', 2, 'payment:order:close', 2, 1, 1, 1, 0, 1, 1);
+(431, 17, 'PayOrderClose', '', '', '', '关闭', 2, 'payment:order:close', 2, 1, 1, 1, 0, 1, 1),
+-- 设置类页面的「保存」动作。菜单本身只有 system:config:list（读），
+-- 写权限需要单独授予，故每个设置页挂一个 system:config:edit 按钮。
+(440, 11, 'SiteSettingsEdit', '', '', '', '保存', 2, 'system:config:edit', 1, 1, 1, 1, 0, 1, 1),
+(441, 12, 'PaymentSettingsEdit', '', '', '', '保存', 2, 'system:config:edit', 1, 1, 1, 1, 0, 1, 1),
+(442, 13, 'OSSSettingsEdit', '', '', '', '保存', 2, 'system:config:edit', 1, 1, 1, 1, 0, 1, 1),
+(443, 14, 'SMSSettingsEdit', '', '', '', '保存', 2, 'system:config:edit', 1, 1, 1, 1, 0, 1, 1);
 
 -- 超级管理员菜单权限
 INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES

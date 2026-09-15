@@ -13,6 +13,8 @@ type DeptRepository interface {
 	FindAll() ([]model.SysDept, error)
 	Update(dept *model.SysDept) error
 	Delete(id uint) error
+	// CountByParentID 统计直属子部门数量，用于删除前校验
+	CountByParentID(parentID uint) (int64, error)
 }
 
 type deptRepository struct {
@@ -45,4 +47,10 @@ func (r *deptRepository) Update(dept *model.SysDept) error {
 
 func (r *deptRepository) Delete(id uint) error {
 	return r.db.Delete(&model.SysDept{}, id).Error
+}
+
+func (r *deptRepository) CountByParentID(parentID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.SysDept{}).Where("parent_id = ?", parentID).Count(&count).Error
+	return count, err
 }

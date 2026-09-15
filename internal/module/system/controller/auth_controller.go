@@ -10,7 +10,6 @@ import (
 	"go-admin/internal/cache"
 	"go-admin/internal/common"
 	"go-admin/internal/logger"
-	captchaModel "go-admin/internal/module/captcha/model"
 	captchaService "go-admin/internal/module/captcha/service"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/model"
@@ -53,22 +52,14 @@ func (ctl *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	// 验证码校验（如果提供了 captchaToken）
-	if req.CaptchaToken != "" {
-		// 从请求中获取验证码坐标（前端点击验证码后会提交）
-		var captchaReq struct {
-			Token  string              `json:"captchaToken"`
-			Points []captchaModel.Point `json:"captchaPoints"`
-		}
-		_ = c.ShouldBindJSON(&captchaReq)
-
-		if len(captchaReq.Points) > 0 {
-			resp, err := ctl.captchaService.Verify(captchaReq.Token, captchaReq.Points)
-			if err != nil || !resp.Success {
-				common.Error(c, common.CodeBadRequest, "验证码错误")
-				return
-			}
-		}
+	// 人机校验：凭证由 /captcha/verify 校验通过后签发，一次性。
+	//
+	// 早前的写法在第一次 ShouldBindJSON 之后又绑定一次请求体取验证码坐标 ——
+	// 请求体已被首次绑定读尽，二次绑定必然失败且错误被丢弃（Points 恒为空），
+	// 于是整个校验分支从未执行过，登录实际没有任何人机校验。
+	if !captchaService.ConsumeVerifiedToken(req.CaptchaToken) {
+		common.Error(c, common.CodeBadRequest, "验证码无效或已失效，请重新验证")
+		return
 	}
 
 	// 登录限频：IP 与账号双维度计数。
@@ -134,19 +125,29 @@ func (ctl *AuthController) RefreshToken(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/auth/logout [post]
 func (ctl *AuthController) Logout(c *gin.Context) {
-	token := c.GetHeader("Authorization")
-	if token != "" && len(token) > 7 {
-		accessToken := token[7:]
+	// 旧客户端不传请求体，绑定失败属预期，忽略
+	var req dto.LogoutRequest
+	_ = c.ShouldBindJSON(&req)
+
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" && len(authHeader) > 7 {
+		accessToken := authHeader[7:]
 		// 将 access token 加入黑名单，剩余有效时间作为过期时间
-		if claims, err := auth.ParseToken(accessToken); err == nil && claims.ExpiresAt != nil {
-			ttl := time.Until(claims.ExpiresAt.Time)
-			if ttl > 0 {
-				if err := cache.RevokeToken(context.Background(), accessToken, ttl); err != nil {
-					logger.Log.Warnf("token加入黑名单失败: %v", err)
+		if claims, err := auth.ParseToken(accessToken); err == nil {
+			if claims.ExpiresAt != nil {
+				if ttl := time.Until(claims.ExpiresAt.Time); ttl > 0 {
+					if err := cache.RevokeToken(context.Background(), accessToken, ttl); err != nil {
+						logger.Log.Warnf("token加入黑名单失败: %v", err)
+					}
 				}
 			}
+			// 连带吊销 refresh token。
+			// 之前这里把 access token 当作 refresh token 去删（键名 refresh_token:<accessToken>），
+			// 删的是一个从未存在的键，导致登出后 refresh token 仍可换发新 access token。
+			if err := ctl.authService.Logout(claims.UserID, req.RefreshToken); err != nil {
+				logger.Log.Warnf("吊销refresh token失败: %v", err)
+			}
 		}
-		_ = ctl.authService.Logout(token[7:])
 	}
 	common.Success(c, nil)
 }

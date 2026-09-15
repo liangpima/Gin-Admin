@@ -22,40 +22,100 @@ const (
 	maxBodyLogLength = 2000
 )
 
-// sensitiveBodyFields 命中即脱敏的字段名（按小写比较）。
-// 直接记录原始请求体会把明文密码写入日志表——创建用户、重置密码、
-// 修改密码这几个接口的 body 里都带密码，因此必须先脱敏再落库。
-var sensitiveBodyFields = map[string]bool{
-	"password":        true,
-	"oldpassword":     true,
-	"newpassword":     true,
-	"confirmpassword": true,
-	"secret":          true,
-	"secretkey":       true,
-	"accesskey":       true,
-	"privatekey":      true,
-	"apiv3key":        true,
-	"token":           true,
-	"accesstoken":     true,
-	"refreshtoken":    true,
+// sensitiveNameFragments 判定「字段名 / 配置项名」是否敏感所用的片段（子串匹配）。
+//
+// 用子串而非全名精确匹配，是为了覆盖 clientSecret、userPassword、apiKey 这类
+// 驼峰或带前缀的命名。刻意不包含裸 "key"：它在 {"key":"site.name","value":"..."}
+// 这类结构里只是配置项名，本身不是密文。
+var sensitiveNameFragments = []string{
+	"password", "passwd", "secret", "token",
+	"credential", "privatekey", "accesskey", "apiv3key", "secretkey", "pem",
 }
 
-// maskSensitiveFields 递归替换 JSON 结构中的敏感字段值
-func maskSensitiveFields(v interface{}) {
+// isSensitiveName 判断字段名或配置项名是否敏感。
+//
+// 先归一化（去下划线/连字符）再匹配，使 access_key、access-key、accessKey、
+// accesskey 这几种写法都能命中同一个片段。
+func isSensitiveName(name string) bool {
+	normalized := strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(name))
+	for _, frag := range sensitiveNameFragments {
+		if strings.Contains(normalized, frag) {
+			return true
+		}
+	}
+	return false
+}
+
+// isNameField 判断该字段是否为「配置项名称」字段
+func isNameField(key string) bool {
+	switch strings.ToLower(key) {
+	case "key", "configkey", "config_key", "name", "config_name":
+		return true
+	}
+	return false
+}
+
+// isValueField 判断该字段是否为「配置项取值」字段
+func isValueField(key string) bool {
+	switch strings.ToLower(key) {
+	case "value", "configvalue", "config_value", "val":
+		return true
+	}
+	return false
+}
+
+// maskSensitiveFields 递归替换 JSON 结构中的敏感字段值，返回处理后的值。
+//
+// 除按字段名脱敏外，还处理两类容易漏掉的情况：
+//  1. 「名称 + 取值」分离：配置批量保存的 body 形如
+//     {"items":[{"key":"secret_key","value":"真实密钥"}]}，
+//     密钥在通用的 value 字段里，必须结合同级的 key 字段判断。
+//  2. 嵌套 JSON 字符串：{"data":"{\"password\":\"x\"}"} 这类把 JSON 当字符串传的写法，
+//     需要递归解析后再脱敏，否则会被整体跳过。
+func maskSensitiveFields(v interface{}) interface{} {
 	switch val := v.(type) {
 	case map[string]interface{}:
+		// 先看同级是否存在敏感的「名称」字段，若有则其对应的「取值」也要脱敏
+		sensitiveValue := false
 		for k, item := range val {
-			if sensitiveBodyFields[strings.ToLower(k)] {
+			if !isNameField(k) {
+				continue
+			}
+			if name, ok := item.(string); ok && isSensitiveName(name) {
+				sensitiveValue = true
+				break
+			}
+		}
+
+		for k, item := range val {
+			if isSensitiveName(k) || (sensitiveValue && isValueField(k)) {
 				val[k] = maskedValue
 				continue
 			}
-			maskSensitiveFields(item)
+			val[k] = maskSensitiveFields(item)
 		}
+		return val
+
 	case []interface{}:
-		for _, item := range val {
-			maskSensitiveFields(item)
+		for i, item := range val {
+			val[i] = maskSensitiveFields(item)
 		}
+		return val
+
+	case string:
+		trimmed := strings.TrimSpace(val)
+		if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+			var inner interface{}
+			if err := json.Unmarshal([]byte(trimmed), &inner); err == nil {
+				if out, err := json.Marshal(maskSensitiveFields(inner)); err == nil {
+					return string(out)
+				}
+			}
+		}
+		return val
 	}
+
+	return v
 }
 
 // sanitizeRequestBody 对请求体脱敏并按长度截断后再落库
@@ -70,7 +130,7 @@ func sanitizeRequestBody(body []byte) string {
 		return "[non-json body omitted]"
 	}
 
-	maskSensitiveFields(parsed)
+	parsed = maskSensitiveFields(parsed)
 
 	out, err := json.Marshal(parsed)
 	if err != nil {

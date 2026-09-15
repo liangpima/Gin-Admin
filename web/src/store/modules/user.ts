@@ -23,8 +23,8 @@ export const useUserStore = defineStore('user', {
   }),
 
   actions: {
-    async login(username: string, password: string) {
-      const res = await loginApi({ username, password })
+    async login(username: string, password: string, captchaToken: string) {
+      const res = await loginApi({ username, password, captchaToken })
       this.token = res.data.accessToken
       this.refreshToken = res.data.refreshToken
       setToken(res.data.accessToken)
@@ -41,7 +41,9 @@ export const useUserStore = defineStore('user', {
 
     async logout() {
       try {
-        await logoutApi()
+        // 必须带上 refreshToken，否则服务端无法定位并吊销它，
+        // 登出后该凭据仍可换发新的 access token
+        await logoutApi(this.refreshToken || getRefreshToken())
       } catch {}
       this.token = ''
       this.refreshToken = ''

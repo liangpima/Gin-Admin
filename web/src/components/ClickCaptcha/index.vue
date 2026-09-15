@@ -143,6 +143,9 @@ async function verify() {
 onMounted(() => {
   loadCaptcha()
 })
+
+// 供父组件在登录失败后重置验证码（验证结果是一次性的）
+defineExpose({ refresh })
 </script>
 
 <style lang="scss" scoped>

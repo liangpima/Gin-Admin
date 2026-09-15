@@ -16,8 +16,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -216,7 +218,60 @@ func (g *WechatPayGateway) verifySignature(timestamp, nonce, body, signature, se
 	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], sigBytes)
 }
 
+// 平台证书缓存。
+//
+// 回调验签每次都要用平台公钥，若每次都现拉 /v3/certificates，
+// 等于每笔回调多一次带签名的 HTTPS 往返 —— 既拖慢回调，
+// 也会把「获取证书失败」放大成「全部回调验签失败」。
+var (
+	certCacheMu   sync.RWMutex
+	certCache     = make(map[string]*rsa.PublicKey)
+	certCacheTime time.Time
+)
+
+// certCacheTTL 平台证书缓存时长。微信平台证书轮换周期远长于此，10 分钟是安全与性能的折中
+const certCacheTTL = 10 * time.Minute
+
 func (g *WechatPayGateway) getPlatformPublicKey(serial string) (*rsa.PublicKey, error) {
+	if pub := cachedPlatformPublicKey(serial); pub != nil {
+		return pub, nil
+	}
+
+	keys, err := g.fetchPlatformPublicKeys()
+	if err != nil {
+		// 拉取失败时退回旧缓存：宁可用可能过期的证书，也不要让回调整体中断
+		if pub := cachedPlatformPublicKey(serial, true); pub != nil {
+			return pub, nil
+		}
+		return nil, err
+	}
+
+	certCacheMu.Lock()
+	certCache = keys
+	certCacheTime = time.Now()
+	certCacheMu.Unlock()
+
+	pub, ok := keys[serial]
+	if !ok {
+		return nil, fmt.Errorf("certificate with serial %s not found", serial)
+	}
+	return pub, nil
+}
+
+// cachedPlatformPublicKey 读取缓存的平台公钥。
+// allowStale 为 true 时忽略过期判断（用于拉取失败时降级）
+func cachedPlatformPublicKey(serial string, allowStale ...bool) *rsa.PublicKey {
+	certCacheMu.RLock()
+	defer certCacheMu.RUnlock()
+
+	stale := len(allowStale) > 0 && allowStale[0]
+	if !stale && (certCacheTime.IsZero() || time.Since(certCacheTime) > certCacheTTL) {
+		return nil
+	}
+	return certCache[serial]
+}
+
+func (g *WechatPayGateway) fetchPlatformPublicKeys() (map[string]*rsa.PublicKey, error) {
 	// Fetch platform certificates from WeChat Pay API
 	certsURL := "https://api.mch.weixin.qq.com/v3/certificates"
 	resp, err := g.doRequest("GET", certsURL, nil)
@@ -239,37 +294,40 @@ func (g *WechatPayGateway) getPlatformPublicKey(serial string) (*rsa.PublicKey, 
 		return nil, fmt.Errorf("parse certificates response failed: %w", err)
 	}
 
+	keys := make(map[string]*rsa.PublicKey, len(certsResp.Data))
 	for _, cert := range certsResp.Data {
-		if cert.SerialNo == serial {
-			// Decrypt certificate using APIv3 key
-			plaintext, err := g.decryptResource(
-				cert.EncryptCertificate.Ciphertext,
-				cert.EncryptCertificate.Nonce,
-				cert.EncryptCertificate.AssociatedData,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("decrypt certificate failed: %w", err)
-			}
-
-			block, _ := pem.Decode(plaintext)
-			if block == nil {
-				return nil, fmt.Errorf("failed to decode PEM certificate")
-			}
-
-			certObj, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return nil, fmt.Errorf("parse certificate failed: %w", err)
-			}
-
-			pubKey, ok := certObj.PublicKey.(*rsa.PublicKey)
-			if !ok {
-				return nil, fmt.Errorf("not an RSA public key")
-			}
-			return pubKey, nil
+		// Decrypt certificate using APIv3 key
+		plaintext, err := g.decryptResource(
+			cert.EncryptCertificate.Ciphertext,
+			cert.EncryptCertificate.Nonce,
+			cert.EncryptCertificate.AssociatedData,
+		)
+		if err != nil {
+			// 单张证书解密失败（如新增了未知算法）不应中断整体，跳过即可
+			continue
 		}
+
+		block, _ := pem.Decode(plaintext)
+		if block == nil {
+			continue
+		}
+
+		certObj, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			continue
+		}
+
+		pubKey, ok := certObj.PublicKey.(*rsa.PublicKey)
+		if !ok {
+			continue
+		}
+		keys[cert.SerialNo] = pubKey
 	}
 
-	return nil, fmt.Errorf("certificate with serial %s not found", serial)
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("no usable platform certificate")
+	}
+	return keys, nil
 }
 
 func (g *WechatPayGateway) decryptResource(ciphertext, nonce, associatedData string) ([]byte, error) {
@@ -344,7 +402,7 @@ func (g *WechatPayGateway) generateAuthorization(method, url, body string) (stri
 	if err != nil {
 		return "", err
 	}
-	message := fmt.Sprintf("%s\n%s\n%s\n%s\n", method, url, timestamp, nonceStr)
+	message := buildSignatureMessage(method, url, timestamp, nonceStr, body)
 
 	pk, err := parsePrivateKey(g.config.Key)
 	if err != nil {
@@ -359,6 +417,34 @@ func (g *WechatPayGateway) generateAuthorization(method, url, body string) (stri
 
 	return fmt.Sprintf(`WECHATPAY2-SHA256-RSA2048 mchid="%s",nonce_str="%s",signature="%s",timestamp="%s",serial_no="%s"`,
 		g.config.MchID, nonceStr, base64.StdEncoding.EncodeToString(sign), timestamp, g.config.SerialNo), nil
+}
+
+// buildSignatureMessage 构造微信支付 APIv3 的待签名串。
+//
+// 格式（每行末尾都要有 \n，含最后一行）：
+//
+//	HTTP方法\nURL路径(含query)\n时间戳\n随机串\n报文主体\n
+//
+// 两个易错点：URL 必须是去掉域名的路径；报文主体必须参与签名 ——
+// 漏掉 body 会让所有带请求体的调用（下单/退款）签名校验失败。
+func buildSignatureMessage(method, url, timestamp, nonce, body string) string {
+	return fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n", method, canonicalURL(url), timestamp, nonce, body)
+}
+
+// canonicalURL 取参与签名的 URL：即绝对地址去掉协议与域名后的「路径 + query」。
+//
+// 微信 APIv3 要求签名串里的 URL 不含域名（/v3/pay/transactions/native 而非完整 https:// 地址），
+// 传入完整地址会导致签名比对失败，表现为所有主动请求（下单/退款/查询）返回 401。
+// 解析失败时退回原值，不至于因为格式问题让请求彻底发不出去。
+func canonicalURL(rawURL string) string {
+	u, err := neturl.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if u.RequestURI() == "" {
+		return rawURL
+	}
+	return u.RequestURI()
 }
 
 func parsePrivateKey(key string) (*rsa.PrivateKey, error) {

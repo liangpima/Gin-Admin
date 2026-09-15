@@ -1,9 +1,13 @@
 package service
 
 import (
+	"context"
 	"errors"
 
+	"go-admin/internal/cache"
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
+	"go-admin/internal/middleware"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
@@ -54,7 +58,11 @@ func (s *menuService) Create(req *dto.CreateMenuRequest, operatorID uint) error 
 		IsCache:    req.IsCache,
 	}
 
-	return s.menuRepo.Create(menu)
+	if err := s.menuRepo.Create(menu); err != nil {
+		return err
+	}
+	s.syncPolicies()
+	return nil
 }
 
 func (s *menuService) Update(req *dto.UpdateMenuRequest, operatorID uint) error {
@@ -82,11 +90,29 @@ func (s *menuService) Update(req *dto.UpdateMenuRequest, operatorID uint) error 
 	menu.IsCache = req.IsCache
 	menu.UpdateBy = operatorID
 
-	return s.menuRepo.Update(menu)
+	if err := s.menuRepo.Update(menu); err != nil {
+		return err
+	}
+	s.syncPolicies()
+	return nil
 }
 
 func (s *menuService) Delete(id uint) error {
-	return s.menuRepo.Delete(id)
+	if err := s.menuRepo.Delete(id); err != nil {
+		return err
+	}
+	s.syncPolicies()
+	return nil
+}
+
+// syncPolicies 菜单的权限码增删改会影响策略，需重建并清理角色缓存。
+func (s *menuService) syncPolicies() {
+	if err := middleware.SyncPoliciesFromRoleMenus(); err != nil {
+		logger.Log.Errorf("同步权限策略失败: %v", err)
+	}
+	if err := cache.DelByPrefix(context.Background(), "rbac:roles:"); err != nil {
+		logger.Log.Warnf("清理角色缓存失败: %v", err)
+	}
 }
 
 func (s *menuService) FindByID(id uint) (interface{}, error) {

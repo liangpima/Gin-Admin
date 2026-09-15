@@ -11,6 +11,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// ErrDeptHasChildren 删除部门时存在下级部门。
+//
+// 用哨兵错误暴露出来，让 Controller 能把它归为 400（参数/前置条件不满足），
+// 而不是笼统地返回 500 —— 这是调用方的用法问题，不是服务端故障。
+var ErrDeptHasChildren = errors.New("存在下级部门，请先删除下级部门")
+
 type DeptService interface {
 	Create(req *dto.CreateDeptRequest, operatorID uint) error
 	Update(req *dto.UpdateDeptRequest, operatorID uint) error
@@ -68,7 +74,19 @@ func (s *deptService) Update(req *dto.UpdateDeptRequest, operatorID uint) error 
 	return s.deptRepo.Update(dept)
 }
 
+// Delete 删除部门。
+//
+// 存在子部门时拒绝删除：直接删父节点会让子部门的 parent_id 悬空，
+// 而 FindTree 从 parent_id=0 递归构建，这棵子树会「从界面上消失」，
+// 数据却还在库里，既看不见也删不掉，成为孤儿数据。
 func (s *deptService) Delete(id uint) error {
+	children, err := s.deptRepo.CountByParentID(id)
+	if err != nil {
+		return err
+	}
+	if children > 0 {
+		return ErrDeptHasChildren
+	}
 	return s.deptRepo.Delete(id)
 }
 

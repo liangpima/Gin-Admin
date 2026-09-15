@@ -12,6 +12,7 @@ import (
 	"go-admin/internal/cache"
 	"go-admin/internal/common"
 	"go-admin/internal/logger"
+	"go-admin/internal/middleware"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
@@ -95,10 +96,9 @@ func (s *userService) Create(tenantID uint, req *dto.CreateUserRequest, operator
 }
 
 func (s *userService) Update(tenantID uint, req *dto.UpdateUserRequest, operatorID uint) error {
-	if s.userRepo.CountByUsername(tenantID, "", req.ID) > 0 {
-		return errors.New("用户名已存在")
-	}
-
+	// 更新不开放修改用户名（见 dto.UpdateUserRequest），因此无需重名校验。
+	// 早前这里调用 CountByUsername(tenantID, "", req.ID) —— 传入空用户名恒为 0，
+	// 「用户名已存在」是一条永远不会触发的死分支。存在性由下面的 FindByID 保证。
 	user, err := s.userRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -250,7 +250,12 @@ func (s *userService) UpdateRoles(tenantID uint, req *dto.UpdateUserRolesRequest
 	if err != nil {
 		return errors.New("用户不存在")
 	}
-	return s.userRepo.ReplaceRoles(req.ID, req.RoleIds)
+	if err := s.userRepo.ReplaceRoles(req.ID, req.RoleIds); err != nil {
+		return err
+	}
+	// 角色变更后立即失效该用户的角色缓存，否则最长 60s 内仍按旧角色鉴权
+	middleware.ClearRoleCache(tenantID, req.ID)
+	return nil
 }
 
 func (s *userService) UpdateDept(tenantID uint, req *dto.UpdateUserDeptRequest) error {
@@ -300,15 +305,30 @@ func (s *userService) ChangePassword(userID uint, req *dto.ChangePasswordRequest
 	return nil
 }
 
-// revokeUserTokens 吊销用户的所有 refresh token
+// revokeUserTokens 吊销用户的所有 refresh token，并使其旧 access token 失效。
+//
+// refresh token 本身是随机串，必须依靠登录时登记的用户维度集合才能枚举出来；
+// 早前直接删 refresh_token:user:<id> 是删了一个从未写入的键，等于没吊销。
 func (s *userService) revokeUserTokens(userID uint) {
 	ctx := context.Background()
-	key := "refresh_token:user:" + fmt.Sprintf("%d", userID)
-	if err := cache.Del(ctx, key); err != nil {
+
+	tokens, err := cache.SMembers(ctx, cache.RefreshTokenSetKey(userID))
+	if err != nil {
+		logger.Log.Warnf("读取refresh token列表失败: %v", err)
+	}
+
+	keys := make([]string, 0, len(tokens)+1)
+	for _, t := range tokens {
+		keys = append(keys, cache.RefreshTokenKey(t))
+	}
+	keys = append(keys, cache.RefreshTokenSetKey(userID))
+
+	if err := cache.Del(ctx, keys...); err != nil {
 		logger.Log.Warnf("吊销refresh token失败: %v", err)
 	}
+
 	// 同时设置一个标记，使得该用户的所有旧 access token 失效
-	if err := cache.Set(ctx, "user:token_revoked:"+fmt.Sprintf("%d", userID), "1",
+	if err := cache.Set(ctx, fmt.Sprintf("user:token_revoked:%d", userID), "1",
 		time.Duration(config.Cfg.JWT.AccessExpire)*time.Second); err != nil {
 		logger.Log.Warnf("设置token吊销标记失败: %v", err)
 	}

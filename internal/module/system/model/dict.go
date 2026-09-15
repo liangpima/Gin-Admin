@@ -8,7 +8,7 @@ type SysDictType struct {
 	common.BaseModel
 	Name   string `gorm:"type:varchar(128);comment:字典名称" json:"name"`
 	Type   string `gorm:"type:varchar(128);uniqueIndex;comment:字典类型" json:"type"`
-	Status int8   `gorm:"type:tinyint;default:1;comment:状态" json:"status"`
+	Status int8   `gorm:"type:tinyint;comment:状态" json:"status"`
 }
 
 func (SysDictType) TableName() string {
@@ -23,7 +23,7 @@ type SysDictData struct {
 	Sort     int    `gorm:"type:int;default:0;comment:排序" json:"sort"`
 	CssClass string `gorm:"type:varchar(128);comment:样式属性" json:"cssClass"`
 	ListClass string `gorm:"type:varchar(128);comment:表格回显样式" json:"listClass"`
-	Status   int8   `gorm:"type:tinyint;default:1;comment:状态" json:"status"`
+	Status   int8   `gorm:"type:tinyint;comment:状态" json:"status"`
 }
 
 func (SysDictData) TableName() string {

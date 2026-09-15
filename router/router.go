@@ -275,8 +275,11 @@ func Setup(mode string) *gin.Engine {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
-	// 静态文件服务 - 上传文件
-	r.Static("/uploads", "uploads")
+	// 静态文件服务 - 上传文件。
+	// 该目录对匿名访问开放（前端需直链引用），因此补一层安全响应头，
+	// 防止 .svg 等同源可解析文件被当作文档打开而触发存储型 XSS。
+	uploads := r.Group("/uploads", middleware.UploadSecurity())
+	uploads.Static("/", "uploads")
 
 	return r
 }

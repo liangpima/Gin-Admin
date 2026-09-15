@@ -2,9 +2,10 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"go-admin/internal/cache"
@@ -15,50 +16,65 @@ import (
 
 	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-var enforcer *casbin.Enforcer
-
-// rbacDomain 与 config/casbin/model.conf 中的 dom 对应。
-// 策略记录（p）中的 dom 字段必须与此值一致，否则匹配会失败。
+// enforcerPtr 当前生效的 enforcer。
 //
-// 这里使用固定域：租户数据隔离已在 Repository 层解决，
-// 且 sys_role.code 为全局唯一索引，不同租户的角色 code 不会冲突。
-const rbacDomain = "default"
+// 策略变更时构建**全新的 enforcer** 再原子替换，而不是原地修改现有实例：
+// casbin 的 Enforcer 不支持「一边 AddPolicies 写模型、一边 Enforce 读模型」，
+// 并发下会触发 fatal error: concurrent map read and map write（Recovery 抓不住）。
+var enforcerPtr atomic.Pointer[casbin.Enforcer]
 
-// rbacRoleCacheTTL 用户角色的缓存时长。
-// 角色变更后，鉴权结果最多需要这么久才生效。
-const rbacRoleCacheTTL = 60 * time.Second
+// casbinModelPath 模型文件路径，重建 enforcer 时使用
+var casbinModelPath string
 
-// adminRoleCode 超级管理员角色 code，始终放行全部权限
-const adminRoleCode = "admin"
+// syncMu 串行化策略同步，避免并发同步互相覆盖
+var syncMu sync.Mutex
+
+const (
+	// rbacDomain 与 config/casbin/model.conf 中的 dom 对应
+	rbacDomain = "default"
+	// adminRoleCode 超级管理员角色 code，始终持有通配策略
+	adminRoleCode = "admin"
+	// rbacRoleCacheTTL 用户角色缓存时长，角色变更后最多这么久生效
+	rbacRoleCacheTTL = 60 * time.Second
+	// maxRuleValueLen casbin_rule 各策略列的长度上限
+	maxRuleValueLen = 200
+)
 
 func InitCasbin(modelPath string) error {
-	// 确保策略表存在（幂等），避免部署时因漏执行建表语句导致鉴权静默失效
+	casbinModelPath = modelPath
+
+	// 确保策略表存在（幂等），避免部署时因漏执行建表语句导致鉴权失效
 	if err := database.DB.AutoMigrate(&CasbinRule{}); err != nil {
 		return fmt.Errorf("创建 casbin_rule 表失败: %w", err)
 	}
 
-	var err error
-	enforcer, err = casbin.NewEnforcer(modelPath, newGormAdapter(database.DB))
+	enforcer, err := casbin.NewEnforcer(modelPath, newGormAdapter(database.DB))
 	if err != nil {
 		return err
 	}
+	enforcerPtr.Store(enforcer)
 
 	return SyncPoliciesFromRoleMenus()
 }
 
+// currentEnforcer 取当前生效的 enforcer
+func currentEnforcer() *casbin.Enforcer {
+	return enforcerPtr.Load()
+}
+
 // SyncPoliciesFromRoleMenus 依据「角色-菜单」授权关系重建权限策略。
 //
-// 菜单上配置的 permission 即权限码，路由通过 middleware.Perm(code) 声明所需权限码，
-// 因此给角色分配菜单就等同于分配权限，不需要手工维护 casbin_rule。
+// 菜单上配置的 permission 即权限码，路由通过 protected() 登记所需权限码，
+// 因此给角色分配菜单就等同于分配权限，无需手工维护 casbin_rule。
 // 在启动时以及角色/菜单发生变更后调用。
 func SyncPoliciesFromRoleMenus() error {
-	if enforcer == nil {
-		return errors.New("casbin 未初始化")
-	}
+	syncMu.Lock()
+	defer syncMu.Unlock()
 
-	// 读取「角色 code -> 权限码」映射（菜单 permission 为空表示仅作导航，不产生权限）
+	// 1. 读取「角色 code -> 权限码」映射（仅启用中的角色、未删除的菜单）
 	type permRow struct {
 		RoleCode   string
 		Permission string
@@ -69,27 +85,31 @@ func SyncPoliciesFromRoleMenus() error {
 		Joins("JOIN sys_role AS r ON r.id = rm.role_id AND r.deleted_at IS NULL").
 		Joins("JOIN sys_menu AS m ON m.id = rm.menu_id AND m.deleted_at IS NULL").
 		Where("m.permission <> ''").
+		Where("r.status = ?", 1).
 		Scan(&rows).Error; err != nil {
 		return fmt.Errorf("读取角色菜单权限失败: %w", err)
 	}
 
-	// 清空旧策略：先清库表，再让 enforcer 重新加载（此时为空），避免内存与库不一致
-	if err := database.DB.Where("1 = 1").Delete(&CasbinRule{}).Error; err != nil {
-		return fmt.Errorf("清空权限策略失败: %w", err)
-	}
-	if err := enforcer.LoadPolicy(); err != nil {
-		return fmt.Errorf("重新加载权限策略失败: %w", err)
-	}
-
-	// 超级管理员始终放行全部权限
+	// 2. 先在内存里把规则算全并校验长度。
+	//
+	// 必须**校验通过后才动数据库**：否则一旦中途失败，会出现
+	// 「旧策略已清空、新策略没写进去」→ 除 admin 外全站 403 的严重后果。
 	rules := [][]string{{adminRoleCode, rbacDomain, "*", "*"}}
-	seen := map[string]bool{adminRoleCode + "|*": true}
+	seen := map[string]bool{adminRoleCode + "\x00*": true}
 
 	for _, r := range rows {
 		if r.RoleCode == "" || r.Permission == "" {
 			continue
 		}
-		key := r.RoleCode + "|" + r.Permission
+		for _, v := range []string{r.RoleCode, rbacDomain, r.Permission, "*"} {
+			if len([]rune(v)) > maxRuleValueLen {
+				return fmt.Errorf("权限策略超长（列上限 %d 字符）：角色 %q 权限 %q",
+					maxRuleValueLen, r.RoleCode, r.Permission)
+			}
+		}
+
+		// 用 \x00 作分隔符：角色 code 或权限码本身可能含 | 等可见字符
+		key := r.RoleCode + "\x00" + r.Permission
 		if seen[key] {
 			continue
 		}
@@ -97,9 +117,27 @@ func SyncPoliciesFromRoleMenus() error {
 		rules = append(rules, []string{r.RoleCode, rbacDomain, r.Permission, "*"})
 	}
 
-	if _, err := enforcer.AddPolicies(rules); err != nil {
+	// 3. 事务内全量重写策略表
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("1 = 1").Delete(&CasbinRule{}).Error; err != nil {
+			return err
+		}
+		recs := make([]CasbinRule, 0, len(rules))
+		for _, rule := range rules {
+			recs = append(recs, buildRule("p", rule))
+		}
+		return tx.Create(&recs).Error
+	}); err != nil {
 		return fmt.Errorf("写入权限策略失败: %w", err)
 	}
+
+	// 4. 用新策略构建全新 enforcer 并原子替换。
+	//    失败时保留旧 enforcer，权限维持原状（不会出现「清空了但没写回」）。
+	newEnforcer, err := casbin.NewEnforcer(casbinModelPath, newGormAdapter(database.DB))
+	if err != nil {
+		return fmt.Errorf("重建 enforcer 失败: %w", err)
+	}
+	enforcerPtr.Store(newEnforcer)
 
 	logger.Log.Infof("[casbin] 已根据角色-菜单关系同步 %d 条权限策略", len(rules))
 	return nil
@@ -107,9 +145,12 @@ func SyncPoliciesFromRoleMenus() error {
 
 func CasbinAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 初始化失败时 enforcer 为 nil，此时无法鉴权，放行并由启动日志告警
+		enforcer := currentEnforcer()
 		if enforcer == nil {
-			c.Next()
+			// 鉴权是安全控制：未就绪时拒绝，而不是放行
+			logger.Log.Errorf("[casbin] enforcer 未初始化，拒绝请求: %s %s", c.Request.Method, c.FullPath())
+			common.Error(c, common.CodeInternalError, "鉴权服务未就绪")
+			c.Abort()
 			return
 		}
 
@@ -186,7 +227,8 @@ func resolveRoleCodes(c *gin.Context) []string {
 
 	codes := make([]string, 0, len(roles))
 	for _, r := range roles {
-		if r.Code != "" {
+		// 停用的角色不参与鉴权
+		if r.Code != "" && r.Status == 1 {
 			codes = append(codes, r.Code)
 		}
 	}
@@ -209,4 +251,10 @@ func splitRoleCodes(v string) []string {
 		}
 	}
 	return codes
+}
+
+// ClearRoleCache 清除指定用户的角色缓存。
+// 角色授权/编码变更后调用，避免缓存导致权限延迟生效。
+func ClearRoleCache(tenantID, userID uint) {
+	_ = cache.Del(context.Background(), fmt.Sprintf("rbac:roles:%d:%d", tenantID, userID))
 }

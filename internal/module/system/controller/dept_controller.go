@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"errors"
+
 	"go-admin/internal/common"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/service"
@@ -58,6 +60,11 @@ func (ctl *DeptController) Delete(c *gin.Context) {
 	}
 
 	if err := ctl.deptService.Delete(id); err != nil {
+		// 前置条件不满足属于调用方问题，按 400 返回
+		if errors.Is(err, service.ErrDeptHasChildren) {
+			common.Error(c, common.CodeBadRequest, err.Error())
+			return
+		}
 		common.Error(c, common.CodeInternalError, err.Error())
 		return
 	}

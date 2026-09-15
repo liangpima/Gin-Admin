@@ -252,6 +252,10 @@ func (s *PaymentService) RefundOrderWithPayInfo(tenantID uint, orderNo string, r
 		cfg := LoadAlipayConfig()
 		gw := NewAlipayGateway(*cfg)
 		_, err = gw.Refund(nil, orderNo, refundNo, refundAmt)
+	default:
+		// 没有 default 时，未知渠道会让 err 保持 nil，
+		// 于是在「没有发起任何真实退款」的情况下把订单置为已退款
+		return nil, fmt.Errorf("不支持的支付渠道: %s", order.Channel)
 	}
 
 	if err != nil {

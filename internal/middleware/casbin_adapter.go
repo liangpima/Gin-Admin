@@ -8,16 +8,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// CasbinRule 对应 casbin_rule 表，用于持久化权限策略
+// CasbinRule 对应 casbin_rule 表，用于持久化权限策略。
+// 各列宽度需 ≥ sys_menu.permission 的 200 字符，否则长权限码写入会被截断或报错。
 type CasbinRule struct {
 	ID    uint   `gorm:"primarykey"`
-	Ptype string `gorm:"column:ptype;size:100"`
-	V0    string `gorm:"column:v0;size:100"`
-	V1    string `gorm:"column:v1;size:100"`
-	V2    string `gorm:"column:v2;size:100"`
-	V3    string `gorm:"column:v3;size:100"`
-	V4    string `gorm:"column:v4;size:100"`
-	V5    string `gorm:"column:v5;size:100"`
+	Ptype string `gorm:"column:ptype;size:200"`
+	V0    string `gorm:"column:v0;size:200"`
+	V1    string `gorm:"column:v1;size:200"`
+	V2    string `gorm:"column:v2;size:200"`
+	V3    string `gorm:"column:v3;size:200"`
+	V4    string `gorm:"column:v4;size:200"`
+	V5    string `gorm:"column:v5;size:200"`
 }
 
 func (CasbinRule) TableName() string {

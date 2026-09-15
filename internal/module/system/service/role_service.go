@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"errors"
 
+	"go-admin/internal/cache"
 	"go-admin/internal/common"
 	"go-admin/internal/logger"
 	"go-admin/internal/middleware"
@@ -98,8 +100,10 @@ func (s *roleService) Update(req *dto.UpdateRoleRequest, operatorID, tenantID ui
 		if err := s.roleRepo.ReplaceMenus(tenantID, role.ID, req.MenuIds); err != nil {
 			return err
 		}
-		s.syncPolicies()
 	}
+
+	// 角色编码/状态/授权变化都会影响策略，必须同步（不能只在菜单变更时同步）
+	s.syncPolicies()
 
 	return nil
 }
@@ -112,11 +116,15 @@ func (s *roleService) Delete(tenantID, id uint) error {
 	return nil
 }
 
-// syncPolicies 角色-菜单授权关系变更后重建 Casbin 策略，使权限立即生效。
+// syncPolicies 角色授权变更后重建 Casbin 策略并清理角色缓存，使权限立即生效。
 // 失败仅记录日志：授权数据已落库，下次启动会重新同步。
 func (s *roleService) syncPolicies() {
 	if err := middleware.SyncPoliciesFromRoleMenus(); err != nil {
 		logger.Log.Errorf("同步权限策略失败: %v", err)
+	}
+	// 角色编码/状态变更后，用户角色缓存需失效，否则最长 60s 内仍按旧角色鉴权
+	if err := cache.DelByPrefix(context.Background(), "rbac:roles:"); err != nil {
+		logger.Log.Warnf("清理角色缓存失败: %v", err)
 	}
 }
 

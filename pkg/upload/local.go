@@ -5,6 +5,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go-admin/config"
@@ -49,7 +50,20 @@ func (l *localUploader) Upload(file *multipart.FileHeader) (string, error) {
 }
 
 func (l *localUploader) Delete(path string) error {
-	fullPath := filepath.Join(config.Cfg.Upload.SavePath, path)
+	// 防止路径穿越：path 最终来自数据库记录，若被篡改成
+	// "../../config/config.yaml" 之类的值，拼接后会删到上传目录之外。
+	root := filepath.Clean(config.Cfg.Upload.SavePath)
+	rel := filepath.Clean(filepath.FromSlash(path))
+	if filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("非法的文件路径: %s", path)
+	}
+
+	fullPath := filepath.Join(root, rel)
+	// 二次校验：确保拼接结果仍在根目录之内
+	if fullPath != root && !strings.HasPrefix(fullPath, root+string(filepath.Separator)) {
+		return fmt.Errorf("非法的文件路径: %s", path)
+	}
+
 	return os.Remove(fullPath)
 }
 

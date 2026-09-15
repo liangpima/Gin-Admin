@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -220,9 +221,7 @@ func (g *AlipayGateway) ParseNotify(body []byte) (*PayNotifyResult, error) {
 
 	// 解析实际支付金额（元转分）
 	if totalAmount := form.Get("total_amount"); totalAmount != "" {
-		var amt float64
-		fmt.Sscanf(totalAmount, "%f", &amt)
-		result.Amount = int64(amt * 100)
+		result.Amount = yuanToFen(totalAmount)
 	}
 
 	tradeStatus := form.Get("trade_status")
@@ -235,6 +234,52 @@ func (g *AlipayGateway) ParseNotify(body []byte) (*PayNotifyResult, error) {
 	}
 
 	return result, nil
+}
+
+// yuanToFen 把「元」金额字符串转换为「分」。
+//
+// 不能用 int64(amt * 100)：浮点乘法存在表示误差，例如 19.99 * 100
+// 实际得到 1998.9999...，截断后变成 1998 分。回调里会拿它与订单金额比对，
+// 一旦少 1 分就会判为「支付金额不匹配」，结果是用户已付款但订单不入账。
+// 因此这里按字符串拆分整数与小数部分，避免引入浮点。
+func yuanToFen(amount string) int64 {
+	s := strings.TrimSpace(amount)
+	if s == "" {
+		return 0
+	}
+
+	neg := false
+	if strings.HasPrefix(s, "-") {
+		neg = true
+		s = s[1:]
+	}
+
+	intPart, fracPart := s, ""
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		intPart, fracPart = s[:i], s[i+1:]
+	}
+	// 只保留到分；支付宝最多两位小数，超出部分本就不该参与比对
+	if len(fracPart) > 2 {
+		fracPart = fracPart[:2]
+	}
+	for len(fracPart) < 2 {
+		fracPart += "0"
+	}
+	if intPart == "" {
+		intPart = "0"
+	}
+
+	yuan, err1 := strconv.ParseInt(intPart, 10, 64)
+	cent, err2 := strconv.ParseInt(fracPart, 10, 64)
+	if err1 != nil || err2 != nil {
+		return 0
+	}
+
+	total := yuan*100 + cent
+	if neg {
+		return -total
+	}
+	return total
 }
 
 func (g *AlipayGateway) sign(params map[string]string) (string, error) {

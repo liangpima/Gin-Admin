@@ -168,8 +168,11 @@ func (ctl *ConfigController) UploadCert(c *gin.Context) {
 		return
 	}
 
-	saveDir := filepath.Join("uploads", "certs")
-	if err := os.MkdirAll(saveDir, 0755); err != nil {
+	// 证书必须存放在静态服务目录之外：
+	// uploads/ 通过 r.Static("/uploads") 对外匿名可读，
+	// 把商户私钥/证书放在那里等同于公密钥（GET /uploads/certs/xxx.key 即可下载）。
+	saveDir := filepath.Join("runtime", "certs")
+	if err := os.MkdirAll(saveDir, 0700); err != nil {
 		common.Error(c, common.CodeInternalError, "创建目录失败")
 		return
 	}

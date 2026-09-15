@@ -18,7 +18,7 @@ type Member struct {
 	Gender        int8          `gorm:"type:tinyint;default:0;comment:性别 0未知 1男 2女" json:"gender"`
 	Birthday      *time.Time    `gorm:"comment:出生日期" json:"birthday"`
 	LevelID       uint          `gorm:"comment:等级ID" json:"levelId"`
-	Status        int8          `gorm:"type:tinyint;default:1;comment:状态 0停用 1正常" json:"status"`
+	Status        int8          `gorm:"type:tinyint;comment:状态 0停用 1正常" json:"status"`
 	Points        int64         `gorm:"comment:积分" json:"points"`
 	WechatOpenid  string        `gorm:"type:varchar(128);index;comment:微信小程序openid" json:"wechatOpenid"`
 	RegisterTime  time.Time     `gorm:"comment:注册时间" json:"registerTime"`
@@ -37,7 +37,7 @@ type MemberLevel struct {
 	Discount  float64 `gorm:"type:decimal(3,1);default:10.0;comment:折扣 10表示不打折 8表示八折" json:"discount"`
 	Icon      string  `gorm:"type:varchar(256);comment:等级图标" json:"icon"`
 	Sort      int     `gorm:"comment:排序" json:"sort"`
-	Status    int8    `gorm:"type:tinyint;default:1;comment:状态" json:"status"`
+	Status    int8    `gorm:"type:tinyint;comment:状态" json:"status"`
 }
 
 func (MemberLevel) TableName() string {
@@ -49,7 +49,7 @@ type MemberTag struct {
 	Name   string `gorm:"type:varchar(64);not null;comment:标签名称" json:"name"`
 	Color  string `gorm:"type:varchar(20);default:#409eff;comment:标签颜色" json:"color"`
 	Sort   int    `gorm:"comment:排序" json:"sort"`
-	Status int8   `gorm:"type:tinyint;default:1;comment:状态" json:"status"`
+	Status int8   `gorm:"type:tinyint;comment:状态" json:"status"`
 }
 
 func (MemberTag) TableName() string {
