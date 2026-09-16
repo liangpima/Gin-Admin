@@ -18,6 +18,7 @@
           <el-option label="已支付" value="1" />
           <el-option label="已关闭" value="2" />
           <el-option label="已退款" value="3" />
+          <el-option label="退款中" value="4" />
         </el-select>
         <el-button type="primary" @click="loadData">搜索</el-button>
       </div>
@@ -43,6 +44,8 @@
             <el-tag v-else-if="row.status === 1" type="success" size="small">已支付</el-tag>
             <el-tag v-else-if="row.status === 2" type="warning" size="small">已关闭</el-tag>
             <el-tag v-else-if="row.status === 3" type="danger" size="small">已退款</el-tag>
+            <el-tag v-else-if="row.status === 4" type="primary" size="small">退款中</el-tag>
+            <el-tag v-else type="info" size="small">未知</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="tradeNo" label="第三方交易号" width="180" />
@@ -83,8 +86,10 @@
         <el-descriptions-item label="状态">
           <el-tag v-if="detailData.status === 0" type="info">待支付</el-tag>
           <el-tag v-else-if="detailData.status === 1" type="success">已支付</el-tag>
-          <el-descriptions-item v-else-if="detailData.status === 2" type="warning">已关闭</el-descriptions-item>
-          <el-tag v-else type="danger">已退款</el-tag>
+          <el-tag v-else-if="detailData.status === 2" type="warning">已关闭</el-tag>
+          <el-tag v-else-if="detailData.status === 3" type="danger">已退款</el-tag>
+          <el-tag v-else-if="detailData.status === 4" type="primary">退款中</el-tag>
+          <el-tag v-else type="info">未知</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="第三方交易号">{{ detailData.tradeNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="支付时间">{{ detailData.paidAt ? formatDate(detailData.paidAt) : '-' }}</el-descriptions-item>

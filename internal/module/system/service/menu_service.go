@@ -74,6 +74,14 @@ func (s *menuService) Update(req *dto.UpdateMenuRequest, operatorID uint) error 
 		return err
 	}
 
+	// 禁止把菜单挂到自己或自己的后代之下：会形成环，
+	// 该子树将无法从根节点遍历到，等于从界面上消失却仍留在库里
+	if cycle, err := hasCycleInHierarchy(req.ID, req.ParentID, s.menuRepo.FindParentID); err != nil {
+		return err
+	} else if cycle {
+		return common.NewBizError("不能将菜单移动到它自己或它的下级之下")
+	}
+
 	menu.ParentID = req.ParentID
 	menu.Name = req.Name
 	menu.Path = req.Path

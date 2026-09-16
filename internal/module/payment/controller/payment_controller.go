@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"time"
@@ -11,6 +13,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// genOrderNo 生成订单号 / 退款单号。
+//
+// 不能用「毫秒时间戳 + 纳秒末四位」（原实现）：同一毫秒内的并发请求有约 1/10000 概率撞号，
+// 而 pay_order.order_no 带唯一索引；更糟的是 CreateOrder 撞号时会直接返回已存在的订单，
+// 调用方拿到的是**别人的单子**，随后却用新单号去调渠道，语义完全错乱。
+//
+// 改为「时间戳 + 加密随机数」：时间戳保证大致有序便于排查，随机部分让碰撞概率可忽略。
+func genOrderNo(prefix string) string {
+	b := make([]byte, 5)
+	if _, err := rand.Read(b); err != nil {
+		// 随机源异常属极端情况，退回时间戳 + 微秒，至少不 panic
+		return fmt.Sprintf("%s%d%06d", prefix, time.Now().UnixMilli(), time.Now().Nanosecond()/1000)
+	}
+	return fmt.Sprintf("%s%d%s", prefix, time.Now().UnixMilli(), hex.EncodeToString(b))
+}
 
 type PaymentController struct {
 	paymentService *service.PaymentService
@@ -45,7 +63,7 @@ func (ctl *PaymentController) CreateOrder(c *gin.Context) {
 	}
 
 	tenantID := common.GetTenantID(c)
-	orderNo := fmt.Sprintf("PAY%d%04d", time.Now().UnixMilli(), time.Now().Nanosecond()%10000)
+	orderNo := genOrderNo("PAY")
 
 	result, err := ctl.paymentService.CreateOrderWithPayInfo(
 		tenantID, orderNo, req.Subject, req.Body,
@@ -221,7 +239,7 @@ func (ctl *PaymentController) RefundOrder(c *gin.Context) {
 	}
 
 	if req.RefundNo == "" {
-		req.RefundNo = fmt.Sprintf("REF%d%04d", time.Now().UnixMilli(), time.Now().Nanosecond()%10000)
+		req.RefundNo = genOrderNo("REF")
 	}
 
 	tenantID := common.GetTenantID(c)

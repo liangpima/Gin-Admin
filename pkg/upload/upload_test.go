@@ -86,3 +86,63 @@ func TestValidateFile(t *testing.T) {
 		t.Error("非白名单文件未被拒绝")
 	}
 }
+
+// TestSetAllowedExts 校验配置项 upload.allow_exts 真正生效。
+//
+// 早前该配置项虽已声明却从未被读取，白名单是硬编码的 ——
+// 运维为收紧安全在配置里删掉 .svg 不会有任何效果，属危险的一致性陷阱。
+func TestSetAllowedExts(t *testing.T) {
+	orig := allowedExts
+	defer func() {
+		allowedExtsMu.Lock()
+		allowedExts = orig
+		allowedExtsMu.Unlock()
+	}()
+
+	t.Run("按配置收紧白名单", func(t *testing.T) {
+		SetAllowedExts(".jpg,.png")
+		if err := ValidateFile("a.jpg"); err != nil {
+			t.Errorf(".jpg 应被允许: %v", err)
+		}
+		if err := ValidateFile("a.svg"); err == nil {
+			t.Error("配置中删除了 .svg，应被拒绝（修复前仍会放行）")
+		}
+	})
+
+	t.Run("自动补前导点并忽略大小写与空格", func(t *testing.T) {
+		SetAllowedExts(" JPG , .PnG ")
+		if err := ValidateFile("a.jpg"); err != nil {
+			t.Errorf("jpg 应被允许: %v", err)
+		}
+		if err := ValidateFile("b.PNG"); err != nil {
+			t.Errorf("PNG 应被允许: %v", err)
+		}
+	})
+
+	t.Run("空配置不清空既有白名单", func(t *testing.T) {
+		// 恢复到内置默认值后再传空串：空串是「未配置，保持现状」，
+		// 不能把白名单清成空集（否则所有上传都会被拒）
+		allowedExtsMu.Lock()
+		allowedExts = orig
+		allowedExtsMu.Unlock()
+
+		SetAllowedExts("")
+
+		if err := ValidateFile("a.pdf"); err != nil {
+			t.Errorf("空配置不应清空白名单: %v", err)
+		}
+		if err := ValidateFile("a.jpg"); err != nil {
+			t.Errorf("空配置不应影响默认项: %v", err)
+		}
+	})
+
+	t.Run("危险扩展名黑名单不受配置放宽影响", func(t *testing.T) {
+		SetAllowedExts(".php,.exe,.jpg")
+		if err := ValidateFile("shell.php"); err == nil {
+			t.Error("即便配置里写了 .php，也必须被硬编码黑名单拦下")
+		}
+		if err := ValidateFile("evil.exe"); err == nil {
+			t.Error("即便配置里写了 .exe，也必须被硬编码黑名单拦下")
+		}
+	})
+}

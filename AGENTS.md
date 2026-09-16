@@ -430,6 +430,9 @@ make deps                      # 整理依赖
 - JWT Secret 通过环境变量 `JWT_SECRET` 注入，禁止硬编码；**生产环境（mode=release）若仍为默认值将拒绝启动**
 - Access Token 有效期 2 小时，Refresh Token 7 天；两者 Issuer 不同，`ParseToken` 只接受 Access Token，`ParseRefreshToken` 只接受 Refresh Token
 - 登录限频：**IP 与账号双维度**各 5 次失败后锁定 15 分钟（仅在失败时计数，登录成功则清零）
+- 限频计数**必须用 `SETNX` 带 TTL 建键**，不要写「先 `INCR` 再 `EXPIRE`」：
+  后者是两次往返，若 `INCR` 成功而 `EXPIRE` 失败，该 key 永不过期，
+  会把对应的 IP/账号**永久锁死**，只能人工清 Redis
 - 密码修改/用户禁用后自动吊销所有 Token（`userService.revokeUserTokens`）
 - 退出登录时将 Access Token 加入 Redis 黑名单（`cache.RevokeToken`），Auth 中间件检查 `IsTokenRevoked`
 - **Refresh Token 必须登记用户维度索引**：登录/刷新轮换时写入 `cache.RefreshTokenSetKey(userID)`（Redis Set）。
@@ -471,6 +474,8 @@ make deps                      # 整理依赖
 - `/uploads` 为匿名可读的静态目录，由 `middleware.UploadSecurity()` 补 CSP 沙箱响应头防御 SVG XSS
 - **密钥/证书类文件禁止存放在 `uploads/` 下** —— 该目录匿名可读。证书上传写入 `runtime/certs/`
 - 拼接上传目录路径做删除时必须做穿越校验（Clean + 拒绝绝对路径/`..` + 拼接后前缀校验）
+- 白名单来自配置 `upload.allow_exts`（逗号分隔，启动时由 `upload.SetAllowedExts` 注入）。
+  空值表示沿用内置默认；`dangerousExts` 硬编码黑名单**始终生效**，不随配置放宽
 
 ### CORS 配置
 
@@ -490,11 +495,70 @@ make deps                      # 整理依赖
   导致回调判定「支付金额不匹配」。统一用 `yuanToFen()` 按字符串拆分
 - returnURL 开放重定向防护（协议和主机名校验）
 
+#### 涉及外部资金的操作必须先抢占状态（重要）
+
+支付渠道调用是**不可逆的资金操作**，绝不能「先查状态 → 调渠道 → 再改状态」——
+两个并发请求会同时通过状态检查，于是真实退款两次：数据库最终一致，钱多退一份。
+实例级 mutex 也救不了，它只保护改状态那一步，而资金操作在锁外。
+
+统一采用「条件更新抢占 + 影响行数判断」：
+
+```go
+// ✅ 正确顺序
+if err := validateRefund(order, amt); err != nil { return err }   // 1. 纯校验
+claimed, _ := repo.ClaimRefund(orderNo)                            // 2. 条件更新 1→4
+if !claimed { return common.NewBizError("退款正在处理中或已退款") }  //    抢不到就拒绝
+err := s.refund(order, ...)                                        // 3. 抢到才调渠道
+if err != nil { repo.ReleaseRefundClaim(orderNo); return ... }     //    失败回滚
+repo.MarkRefunded(orderNo, amt, now)                               // 4. 成功落定
+```
+
+订单状态见 `payment/model/pay_order.go` 的常量（**禁止裸数字**）：
+`0待支付 1已支付 2已关闭 3已退款 4退款中`。
+`4退款中` 就是为抢占而引入的中间态，前端也需要相应展示。
+
+回调幂等（`MarkPaidIfPending`）用的是同一套模式，两者应保持一致。
+
+#### 订单号生成
+
+`genOrderNo(prefix)` = 前缀 + 毫秒时间戳 + 10 位加密随机 hex。
+**不要退回「时间戳 + 纳秒末四位」**：同毫秒并发有约 1/10000 概率撞号，
+而 `order_no` 有唯一索引；更糟的是撞号时 `CreateOrder` 可能把**别人的订单**返回给调用方。
+`CreateOrder` 只在「标题+金额+渠道全一致」时才复用原单，否则报错。
+
 ### 依赖
 
 - **Redis 是启动强依赖**，初始化失败直接退出。它承载 refresh token 存储、token 黑名单、
   登录限频、验证码与角色缓存；注释里的「可选」是历史误导
 - MySQL 同理，失败即退出
+- 日志轮转使用 `gopkg.in/natefinch/lumberjack.v2`，对应 `log.max_size / max_backups /
+  max_age / compress` 四个配置项（此前这些配置项声明了却从未被读取）
+
+### 定时任务
+
+- 新增任务**必须**通过 `task.AddJob` 注册。它会自动包一层 recover：
+  robfig/cron 默认不 recover panic，任务内一旦 panic 会**直接终止整个进程**，
+  而 `middleware.Recovery` 只覆盖 HTTP 请求，救不了后台任务
+- `pkg/task` 不依赖 `internal/`（保持 pkg 层依赖方向），panic 处理函数由
+  `main.go` 通过 `task.SetPanicHandler` 注入到 zap 日志
+
+### 日志
+
+- `log.filename` 的**父目录会在启动时自动创建**，并做一次可写性探测，失败则拒绝启动。
+  不要退回「`os.OpenFile` 失败静默跳过」的写法 —— 那会让人以为在写文件，实际只输出到 stdout
+- 日志同时输出到 stdout 与文件
+
+### 路径
+
+- `log.filename` / `upload.save_path` / `casbin.model_path` 均为**相对工作目录**的路径，
+  因此必须从项目根目录启动（`./server.exe`）。用 systemd/supervisor 部署时要显式设置
+  `WorkingDirectory`，否则 casbin 加载失败会导致服务拒绝启动
+
+### 层级数据（菜单 / 部门）
+
+- 更新 `parent_id` 前必须调用 `hasCycleInHierarchy` 校验成环。
+  环本身不会导致递归死循环（每个节点只有一个父节点，遍历中最多出现一次），
+  但那棵子树会**从界面上消失**却仍留在库里，成为不可见也不可删的孤儿数据
 
 ### 敏感配置
 

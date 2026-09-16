@@ -118,7 +118,7 @@ async function checkStatus() {
   if (!payResult.value?.orderNo) return
   try {
     const res = await queryPayOrder(payResult.value.orderNo)
-    const statusMap: Record<number, string> = { 0: '待支付', 1: '已支付', 2: '已关闭', 3: '已退款' }
+    const statusMap: Record<number, string> = { 0: '待支付', 1: '已支付', 2: '已关闭', 3: '已退款', 4: '退款中' }
     ElMessage.info(`订单状态：${statusMap[res.data.status] || '未知'}`)
   } catch {
     ElMessage.error('查询失败')

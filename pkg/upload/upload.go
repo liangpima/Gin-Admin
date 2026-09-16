@@ -39,14 +39,50 @@ func setUploader(u uploader) {
 	up = u
 }
 
-// allowedExts 上传文件扩展名白名单
-var allowedExts = map[string]bool{
-	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true, ".svg": true, ".webp": true,
-	".mp4": true, ".mov": true, ".avi": true, ".mkv": true, ".webm": true,
-	".mp3": true, ".wav": true, ".flac": true, ".aac": true,
-	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
-	".ppt": true, ".pptx": true, ".zip": true, ".rar": true, ".7z": true,
-	".txt": true, ".csv": true, ".json": true,
+// allowedExts 上传文件扩展名白名单（内置默认值，可被配置覆盖）
+var (
+	allowedExtsMu sync.RWMutex
+	allowedExts   = map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true, ".svg": true, ".webp": true,
+		".mp4": true, ".mov": true, ".avi": true, ".mkv": true, ".webm": true,
+		".mp3": true, ".wav": true, ".flac": true, ".aac": true,
+		".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
+		".ppt": true, ".pptx": true, ".zip": true, ".rar": true, ".7z": true,
+		".txt": true, ".csv": true, ".json": true,
+	}
+)
+
+// SetAllowedExts 用配置项 upload.allow_exts 覆盖白名单（逗号分隔）。
+//
+// 早前这个配置项虽已声明却从未被读取，实际白名单是硬编码的 ——
+// 运维为了收紧安全在配置里删掉 .svg，不会有任何效果，属危险的一致性陷阱。
+//
+// 传入空串表示沿用内置默认值。注意这只是「白名单」，
+// dangerousExts 那份硬编码黑名单始终生效，不随配置放宽。
+func SetAllowedExts(csv string) {
+	csv = strings.TrimSpace(csv)
+	if csv == "" {
+		return
+	}
+
+	next := make(map[string]bool)
+	for _, part := range strings.Split(csv, ",") {
+		ext := strings.ToLower(strings.TrimSpace(part))
+		if ext == "" {
+			continue
+		}
+		if !strings.HasPrefix(ext, ".") {
+			ext = "." + ext
+		}
+		next[ext] = true
+	}
+	if len(next) == 0 {
+		return
+	}
+
+	allowedExtsMu.Lock()
+	allowedExts = next
+	allowedExtsMu.Unlock()
 }
 
 // dangerousExts 危险文件扩展名（双重校验）
@@ -118,7 +154,11 @@ func ValidateFile(filename string) error {
 	}
 
 	// 再检查白名单
-	if !allowedExts[ext] {
+	allowedExtsMu.RLock()
+	allowed := allowedExts[ext]
+	allowedExtsMu.RUnlock()
+
+	if !allowed {
 		return fmt.Errorf("不支持的文件类型 %s", ext)
 	}
 

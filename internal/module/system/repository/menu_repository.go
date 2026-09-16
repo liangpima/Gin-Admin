@@ -15,6 +15,8 @@ type MenuRepository interface {
 	FindMenusByRoleIDs(roleIDs []uint) ([]model.SysMenu, error)
 	Update(menu *model.SysMenu) error
 	Delete(id uint) error
+	// FindParentID 返回菜单的父节点 ID，ok=false 表示菜单不存在（用于父级成环校验）
+	FindParentID(id uint) (uint, bool, error)
 }
 
 type menuRepository struct {
@@ -68,4 +70,17 @@ func (r *menuRepository) Delete(id uint) error {
 		}
 		return tx.Delete(&model.SysMenu{}, id).Error
 	})
+}
+
+// FindParentID 查询菜单的父节点 ID。
+// 用 Pluck 而非 First：记录不存在时返回空切片，无需额外处理 ErrRecordNotFound。
+func (r *menuRepository) FindParentID(id uint) (uint, bool, error) {
+	var parents []uint
+	if err := r.db.Model(&model.SysMenu{}).Where("id = ?", id).Pluck("parent_id", &parents).Error; err != nil {
+		return 0, false, err
+	}
+	if len(parents) == 0 {
+		return 0, false, nil
+	}
+	return parents[0], true, nil
 }

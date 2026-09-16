@@ -195,15 +195,20 @@ func loginLocked(ctx context.Context, keys ...string) bool {
 	return false
 }
 
-// recordLoginFailure 记录一次登录失败，并在首次失败时设置计数过期时间
+// recordLoginFailure 记录一次登录失败。
+//
+// 用 SETNX 带 TTL 建键，而不是「INCR 之后再 EXPIRE」：
+// 后者是两次独立往返，若 INCR 成功而 EXPIRE 失败（网络抖动、Redis 主从切换），
+// 该 key 就**永远不会过期**，这个 IP 或账号会被永久锁死，只能人工清 Redis 才能恢复。
+// SETNX 把 TTL 与建键合成一次原子操作；键已存在时不做任何事，原有 TTL 不受影响，
+// 因此窗口语义仍是「首次失败起算的固定 15 分钟」。
 func recordLoginFailure(ctx context.Context, keys ...string) {
 	for _, key := range keys {
-		n, err := cache.Incr(ctx, key)
-		if err != nil {
+		if _, err := cache.SetNX(ctx, key, 0, loginLockDuration); err != nil {
 			continue
 		}
-		if n == 1 {
-			_ = cache.Expire(ctx, key, loginLockDuration)
+		if _, err := cache.Incr(ctx, key); err != nil {
+			continue
 		}
 	}
 }

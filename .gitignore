@@ -44,6 +44,9 @@ logs/
 # Uploads
 uploads/
 
+# 运行时产物：支付证书等敏感凭据存放在此，绝不入库
+runtime/
+
 # Build
 dist/
 build/

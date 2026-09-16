@@ -62,6 +62,13 @@ func (s *deptService) Update(req *dto.UpdateDeptRequest, operatorID uint) error 
 		return err
 	}
 
+	// 同菜单：禁止把部门挂到自己或自己的下级之下，避免产生遍历不到的孤儿子树
+	if cycle, err := hasCycleInHierarchy(req.ID, req.ParentID, s.deptRepo.FindParentID); err != nil {
+		return err
+	} else if cycle {
+		return common.NewBizError("不能将部门移动到它自己或它的下级之下")
+	}
+
 	dept.ParentID = req.ParentID
 	dept.Name = req.Name
 	dept.Sort = req.Sort

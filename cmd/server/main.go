@@ -57,6 +57,13 @@ func main() {
 	}
 	defer logger.Log.Sync()
 
+	// 开发模式下 Swagger 与 gin 调试输出是开启的（见 router.Setup）。
+	// 这里显式告警：生产部署若忘记改 mode，这些调试入口会直接暴露。
+	if !config.IsProduction() {
+		logger.Log.Warnf("当前为开发模式(mode=%s)：Swagger 文档与调试信息已开启，生产环境请设置 mode=release",
+			config.Cfg.Server.Mode)
+	}
+
 	if err := database.Init(); err != nil {
 		logger.Log.Fatalf("初始化数据库失败: %v", err)
 	}
@@ -76,6 +83,8 @@ func main() {
 		logger.Log.Fatalf("初始化Casbin失败: %v", err)
 	}
 
+	// 扩展名白名单来自配置（未配置则沿用内置默认值）
+	upload.SetAllowedExts(config.Cfg.Upload.AllowExts)
 	upload.Init(service.LoadOSSConfig())
 
 	r := router.Setup(config.Cfg.Server.Mode)
@@ -83,6 +92,11 @@ func main() {
 	// 注册日志清理定时任务：每天 03:00 清理超过保留期的操作日志与登录日志，
 	// 避免日志表无限增长（保留天数见 log.db_retention_days，<=0 表示不清理）。
 	// 多实例部署时每个实例都会执行，删除操作幂等，影响仅为重复执行。
+	// 把定时任务的 panic 处理接到项目日志上（pkg/task 不依赖 internal，故由这里注入）
+	task.SetPanicHandler(func(spec string, r interface{}, stack []byte) {
+		logger.Log.Errorf("[cron] 任务 %s panic 已捕获，进程继续运行: %v\n%s", spec, r, stack)
+	})
+
 	logService := service.NewLogService()
 	retentionDays := config.Cfg.Log.DBRetentionDays
 	if retentionDays <= 0 {

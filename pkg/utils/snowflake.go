@@ -22,13 +22,22 @@ type Snowflake struct {
 	lastTime  int64
 }
 
-var sf *Snowflake
+var (
+	sf     *Snowflake
+	sfOnce sync.Once
+)
 
+// InitSnowflake 初始化雪花算法实例，重复调用只生效一次。
+//
+// 用 sync.Once 保护：早前的写法允许并发写全局变量 sf，
+// 而 GenerateID 里的「判空 + 懒初始化」在并发首调时构成数据竞争。
 func InitSnowflake(machineID int64) {
 	if machineID < 0 || machineID > maxMachineID {
 		machineID = 1
 	}
-	sf = &Snowflake{machineID: machineID}
+	sfOnce.Do(func() {
+		sf = &Snowflake{machineID: machineID}
+	})
 }
 
 func (s *Snowflake) NextID() int64 {
@@ -44,7 +53,11 @@ func (s *Snowflake) NextID() int64 {
 	if now == s.lastTime {
 		s.sequence = (s.sequence + 1) & maxSequence
 		if s.sequence == 0 {
+			// 同一毫秒内序列号用尽，等到下一毫秒。
+			// 加 Sleep 而不是空转：时钟回拨时这个循环可能要等较久，
+			// 紧循环会把一个核跑满。
 			for now <= s.lastTime {
+				time.Sleep(200 * time.Microsecond)
 				now = time.Now().UnixMilli()
 			}
 		}

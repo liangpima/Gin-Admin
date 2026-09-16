@@ -15,6 +15,8 @@ type DeptRepository interface {
 	Delete(id uint) error
 	// CountByParentID 统计直属子部门数量，用于删除前校验
 	CountByParentID(parentID uint) (int64, error)
+	// FindParentID 返回部门的父节点 ID，ok=false 表示部门不存在（用于父级成环校验）
+	FindParentID(id uint) (uint, bool, error)
 }
 
 type deptRepository struct {
@@ -53,4 +55,16 @@ func (r *deptRepository) CountByParentID(parentID uint) (int64, error) {
 	var count int64
 	err := r.db.Model(&model.SysDept{}).Where("parent_id = ?", parentID).Count(&count).Error
 	return count, err
+}
+
+// FindParentID 查询部门的父节点 ID
+func (r *deptRepository) FindParentID(id uint) (uint, bool, error) {
+	var parents []uint
+	if err := r.db.Model(&model.SysDept{}).Where("id = ?", id).Pluck("parent_id", &parents).Error; err != nil {
+		return 0, false, err
+	}
+	if len(parents) == 0 {
+		return 0, false, nil
+	}
+	return parents[0], true, nil
 }
