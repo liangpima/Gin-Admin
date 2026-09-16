@@ -10,15 +10,10 @@
       <div class="search-bar">
         <el-input v-model="queryParams.subject" placeholder="搜索订单标题" clearable style="width: 200px" @keyup.enter="loadData" @clear="loadData" />
         <el-select v-model="queryParams.channel" placeholder="支付渠道" clearable style="width: 140px" @change="loadData">
-          <el-option label="微信支付" value="wechat" />
-          <el-option label="支付宝" value="alipay" />
+          <el-option v-for="opt in getList('sys_pay_channel', DEFAULT_CHANNELS)" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
         <el-select v-model="queryParams.status" placeholder="订单状态" clearable style="width: 140px" @change="loadData">
-          <el-option label="待支付" value="0" />
-          <el-option label="已支付" value="1" />
-          <el-option label="已关闭" value="2" />
-          <el-option label="已退款" value="3" />
-          <el-option label="退款中" value="4" />
+          <el-option v-for="opt in getList('sys_pay_order_status', DEFAULT_ORDER_STATUS)" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
         <el-button type="primary" @click="loadData">搜索</el-button>
       </div>
@@ -40,12 +35,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 0" type="info" size="small">待支付</el-tag>
-            <el-tag v-else-if="row.status === 1" type="success" size="small">已支付</el-tag>
-            <el-tag v-else-if="row.status === 2" type="warning" size="small">已关闭</el-tag>
-            <el-tag v-else-if="row.status === 3" type="danger" size="small">已退款</el-tag>
-            <el-tag v-else-if="row.status === 4" type="primary" size="small">退款中</el-tag>
-            <el-tag v-else type="info" size="small">未知</el-tag>
+            <DictTag type="sys_pay_order_status" :value="row.status" />
           </template>
         </el-table-column>
         <el-table-column prop="tradeNo" label="第三方交易号" width="180" />
@@ -84,14 +74,9 @@
         <el-descriptions-item label="订单号">{{ detailData.orderNo }}</el-descriptions-item>
         <el-descriptions-item label="订单标题">{{ detailData.subject }}</el-descriptions-item>
         <el-descriptions-item label="金额">¥{{ (detailData.amount / 100).toFixed(2) }}</el-descriptions-item>
-        <el-descriptions-item label="渠道">{{ detailData.channel === 'wechat' ? '微信支付' : '支付宝' }}</el-descriptions-item>
+        <el-descriptions-item label="渠道">{{ getLabel('sys_pay_channel', detailData.channel) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag v-if="detailData.status === 0" type="info">待支付</el-tag>
-          <el-tag v-else-if="detailData.status === 1" type="success">已支付</el-tag>
-          <el-tag v-else-if="detailData.status === 2" type="warning">已关闭</el-tag>
-          <el-tag v-else-if="detailData.status === 3" type="danger">已退款</el-tag>
-          <el-tag v-else-if="detailData.status === 4" type="primary">退款中</el-tag>
-          <el-tag v-else type="info">未知</el-tag>
+          <DictTag type="sys_pay_order_status" :value="detailData.status" />
         </el-descriptions-item>
         <el-descriptions-item label="第三方交易号">{{ detailData.tradeNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="支付时间">{{ detailData.paidAt ? formatDate(detailData.paidAt) : '-' }}</el-descriptions-item>
@@ -105,6 +90,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getPayOrderList, closePayOrder, type PayOrder } from '@/api/payment'
+import DictTag from '@/components/DictTag/index.vue'
+import { useDict } from '@/hooks/useDict'
 
 const loading = ref(false)
 const tableData = ref<PayOrder[]>([])
@@ -120,6 +107,22 @@ const queryParams = reactive({
 
 const detailVisible = ref(false)
 const detailData = ref<PayOrder>({} as PayOrder)
+
+// 渠道与状态选项由数据字典驱动（sys_pay_channel / sys_pay_order_status），
+// 下面是字典缺失时的兜底 —— 字典被清空时筛选框不能变成空下拉。
+const DEFAULT_CHANNELS = [
+  { label: '微信支付', value: 'wechat', listClass: '', cssClass: '' },
+  { label: '支付宝', value: 'alipay', listClass: '', cssClass: '' },
+]
+const DEFAULT_ORDER_STATUS = [
+  { label: '待支付', value: '0', listClass: '', cssClass: '' },
+  { label: '已支付', value: '1', listClass: '', cssClass: '' },
+  { label: '已关闭', value: '2', listClass: '', cssClass: '' },
+  { label: '已退款', value: '3', listClass: '', cssClass: '' },
+  { label: '退款中', value: '4', listClass: '', cssClass: '' },
+]
+
+const { getList, getLabel } = useDict('sys_pay_channel', 'sys_pay_order_status')
 
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'

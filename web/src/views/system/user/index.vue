@@ -16,8 +16,7 @@
           <el-col :xs="24" :sm="12" :md="8" :lg="6">
             <el-form-item label="状态">
               <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 100%">
-                <el-option label="正常" :value="1" />
-                <el-option label="停用" :value="0" />
+                <el-option v-for="opt in statusOptions" :key="String(opt.value)" :label="opt.label" :value="opt.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -166,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { getUserList, createUser, updateUser, deleteUser, resetPassword, updateUserStatus, updateUserRoles, updateUserDept, exportUsers } from '@/api/user'
@@ -176,6 +175,7 @@ import MobileAction from '@/components/MobileAction/index.vue'
 import { formatDateTime } from '@/utils/format'
 import { getAllRoles } from '@/api/role'
 import { getDeptTree } from '@/api/dept'
+import { useDict, type DictOption } from '@/hooks/useDict'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -195,6 +195,26 @@ const queryParams = reactive({
   page: 1,
   pageSize: 10,
 })
+
+// 状态选项由数据字典 sys_user_status 驱动：新增状态（如「锁定」）时
+// 只需在「系统管理 → 数据字典」里加一条，不用改这个页面。
+const { getList: getDictList } = useDict('sys_user_status')
+
+// 字典为空时的兜底。字典是可被运营删除的数据，一旦被清空，
+// 筛选框会变成空下拉 —— 用户连「正常/停用」都选不了，属于功能级故障。
+const DEFAULT_STATUS_OPTIONS: DictOption[] = [
+  { label: '正常', value: '1', listClass: '', cssClass: '' },
+  { label: '停用', value: '0', listClass: '', cssClass: '' },
+]
+
+const statusOptions = computed(() =>
+  // 字典键值在库里是字符串，而 status 查询参数是数字，这里转回数字；
+  // 非纯数字的键值原样保留，避免转出 NaN 让查询条件失效
+  getDictList('sys_user_status', DEFAULT_STATUS_OPTIONS).map((opt) => ({
+    label: opt.label,
+    value: /^\d+$/.test(opt.value) ? Number(opt.value) : opt.value,
+  })),
+)
 
 const form = reactive({
   id: 0,
