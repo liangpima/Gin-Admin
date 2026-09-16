@@ -47,7 +47,29 @@ service.interceptors.request.use(
 )
 
 service.interceptors.response.use(
-  (response: AxiosResponse) => {
+  async (response: AxiosResponse) => {
+    // 二进制下载（如导出 Excel）：正常时是文件流，直接交给调用方；
+    // 但后端出错时（业务错误仍走 HTTP 200）会返回 JSON，必须识别出来，
+    // 否则 Blob 会被当作正常响应返回，用户拿到一个内容为错误信息的「Excel」。
+    if (response.config.responseType === 'blob') {
+      const blob = response.data as Blob
+      if (blob?.type?.includes('application/json')) {
+        const text = await blob.text()
+        try {
+          const res = JSON.parse(text)
+          if (res.code === 401) {
+            handleLogout()
+          } else {
+            ElMessage.error(res.message || '导出失败')
+          }
+          return Promise.reject(new Error(res.message || '导出失败'))
+        } catch {
+          // 不是合法 JSON，按文件流处理
+        }
+      }
+      return response
+    }
+
     const res = response.data
     if (res.code !== 0) {
       if (res.code === 401) {

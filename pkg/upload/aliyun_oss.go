@@ -86,15 +86,6 @@ func (a *aliyunOSS) GetURL(path string) string {
 	return fmt.Sprintf("https://%s.%s/%s", a.bucketName, a.client.Config.Endpoint, objectKey)
 }
 
-func (a *aliyunOSS) SignedURL(path string, expire time.Duration) (string, error) {
-	objectKey := strings.TrimPrefix(path, "/")
-	signedURL, err := a.bucket.SignURL(objectKey, oss.HTTPGet, int64(expire.Seconds()))
-	if err != nil {
-		return "", err
-	}
-	return signedURL, nil
-}
-
 func (a *aliyunOSS) GetObject(path string) (io.ReadCloser, error) {
 	objectKey := strings.TrimPrefix(path, "/")
 	return a.bucket.GetObject(objectKey)

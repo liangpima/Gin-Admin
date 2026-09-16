@@ -28,11 +28,21 @@ type UserService interface {
 	Delete(tenantID, id uint) error
 	FindByID(tenantID, id uint) (interface{}, error)
 	FindList(tenantID uint, req *dto.UserListRequest) ([]interface{}, int64, error)
+	// ExportList 导出用列表：同样的筛选条件，但不做分页截断
+	ExportList(tenantID uint, req *dto.UserListRequest) ([]interface{}, error)
 	UpdateStatus(tenantID uint, req *dto.StatusRequest) error
 	UpdateRoles(tenantID uint, req *dto.UpdateUserRolesRequest) error
 	UpdateDept(tenantID uint, req *dto.UpdateUserDeptRequest) error
 	ResetPassword(tenantID uint, req *dto.ResetPasswordRequest) error
 	ChangePassword(userID uint, req *dto.ChangePasswordRequest) error
+}
+
+// UserWithRoles 用户列表/导出返回的视图：用户本体 + 其角色。
+// 提升为包级类型是为了让 controller 在导出时能做类型断言
+// （早前它是 FindList 内部的匿名结构体，外部无法引用）。
+type UserWithRoles struct {
+	model.SysUser
+	Roles []vo.RoleInfo `json:"roles"`
 }
 
 type userService struct {
@@ -264,20 +274,29 @@ func (s *userService) FindByID(tenantID, id uint) (interface{}, error) {
 	return userWithRoles{SysUser: *user, Roles: roleInfos}, nil
 }
 
+// ExportMaxRows 单次导出的最大行数上限。
+// 导出走的是不分页查询，必须设硬上限，否则一次导出可能把整表读进内存。
+const ExportMaxRows = 10000
+
 func (s *userService) FindList(tenantID uint, req *dto.UserListRequest) ([]interface{}, int64, error) {
 	if req.Page < 1 {
 		req.Page = 1
 	}
 	req.PageSize = common.NormalizePageSize(req.PageSize)
+	return s.query(tenantID, req, req.Page, req.PageSize)
+}
 
-	users, total, err := s.userRepo.FindList(tenantID, req.Username, req.Phone, req.Status, req.DeptID, req.Page, req.PageSize)
+// ExportList 导出用查询：筛选条件与列表一致，但不做分页截断（受 ExportMaxRows 限制）
+func (s *userService) ExportList(tenantID uint, req *dto.UserListRequest) ([]interface{}, error) {
+	rows, _, err := s.query(tenantID, req, 1, ExportMaxRows)
+	return rows, err
+}
+
+// query 按条件查询用户并装配角色，供列表与导出复用，避免两处逻辑漂移
+func (s *userService) query(tenantID uint, req *dto.UserListRequest, page, pageSize int) ([]interface{}, int64, error) {
+	users, total, err := s.userRepo.FindList(tenantID, req.Username, req.Phone, req.Status, req.DeptID, page, pageSize)
 	if err != nil {
 		return nil, 0, err
-	}
-
-	type userWithRoles struct {
-		model.SysUser
-		Roles []vo.RoleInfo `json:"roles"`
 	}
 
 	result := make([]interface{}, len(users))
@@ -326,7 +345,7 @@ func (s *userService) FindList(tenantID uint, req *dto.UserListRequest) ([]inter
 				roleInfos = append(roleInfos, vo.RoleInfo{ID: r.ID, Name: r.Name, Code: r.Code})
 			}
 		}
-		result[i] = userWithRoles{SysUser: u, Roles: roleInfos}
+		result[i] = UserWithRoles{SysUser: u, Roles: roleInfos}
 	}
 	return result, total, nil
 }

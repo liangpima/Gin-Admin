@@ -60,10 +60,9 @@
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120" fixed="right">
+          <!-- Element Plus 把插槽行推成 DefaultRow，而 handleClose/handleDetail
+               形参是 PayOrder，故此处显式断言（数据来自本页查询，类型是可信的） -->
           <template #default="{ row }">
-            <!-- el-table 的插槽作用域 row 被 element-plus 标注为 DefaultRow，
-                 无法直接赋给 PayOrder。这里用断言收敛类型，避免把处理函数的
-                 参数放宽成 any（本文件是全项目唯一保留行类型的地方）。 -->
             <el-button v-if="row.status === 0" type="danger" link size="small" @click="handleClose(row as PayOrder)">关闭</el-button>
             <el-button type="primary" link size="small" @click="handleDetail(row as PayOrder)">详情</el-button>
           </template>

@@ -29,6 +29,7 @@ const (
 	permUserAdd    = "system:user:add"
 	permUserEdit   = "system:user:edit"
 	permUserDelete = "system:user:delete"
+	permUserExport = "system:user:export"
 
 	permRoleList   = "system:role:list"
 	permRoleAdd    = "system:role:add"
@@ -210,6 +211,8 @@ func Setup(mode string) *gin.Engine {
 			protected(system, http.MethodDelete, "/user/:id", permUserDelete, userController.Delete)
 			protected(system, http.MethodGet, "/user/:id", permUserList, userController.FindByID)
 			protected(system, http.MethodGet, "/user/list", permUserList, userController.FindList)
+			// 导出与 /user/:id 同级共存：gin 的静态段优先于参数段（既有 /user/list 已印证）
+			protected(system, http.MethodGet, "/user/export", permUserExport, userController.Export)
 			protected(system, http.MethodPut, "/user/status", permUserEdit, userController.UpdateStatus)
 			protected(system, http.MethodPut, "/user/roles", permUserEdit, userController.UpdateRoles)
 			protected(system, http.MethodPut, "/user/dept", permUserEdit, userController.UpdateDept)

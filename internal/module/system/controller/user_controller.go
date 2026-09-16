@@ -1,9 +1,16 @@
 package controller
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/service"
+	"go-admin/pkg/excel"
 
 	"github.com/gin-gonic/gin"
 )
@@ -137,6 +144,86 @@ func (ctl *UserController) FindList(c *gin.Context) {
 	}
 
 	common.SuccessWithPage(c, users, total, req.Page, req.PageSize)
+}
+
+// @Summary 导出用户列表
+// @Tags 管理员
+// @Produce application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Security BearerApiAuth
+// @Param username query string false "用户名"
+// @Param phone query string false "手机号"
+// @Param status query int false "状态"
+// @Param deptId query int false "部门ID"
+// @Success 200 {file} binary
+// @Router /api/v1/system/user/export [get]
+func (ctl *UserController) Export(c *gin.Context) {
+	var req dto.UserListRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		common.Error(c, common.CodeBadRequest, err.Error())
+		return
+	}
+
+	tenantID := common.GetTenantID(c)
+	rows, err := ctl.userService.ExportList(tenantID, &req)
+	if err != nil {
+		common.FailWith(c, err)
+		return
+	}
+
+	exp, err := excel.NewExporter("用户列表")
+	if err != nil {
+		common.FailWith(c, err)
+		return
+	}
+	defer func() {
+		if cerr := exp.Close(); cerr != nil {
+			logger.Log.Warnf("关闭导出器失败: %v", cerr)
+		}
+	}()
+
+	headers := []string{"ID", "用户名", "昵称", "邮箱", "手机号", "部门ID", "状态", "角色", "创建时间"}
+	if err := exp.SetHeaders(headers); err != nil {
+		common.FailWith(c, err)
+		return
+	}
+
+	for _, row := range rows {
+		u, ok := row.(service.UserWithRoles)
+		if !ok {
+			continue
+		}
+
+		status := "启用"
+		if u.Status != common.StatusEnabled {
+			status = "禁用"
+		}
+
+		roleNames := make([]string, 0, len(u.Roles))
+		for _, r := range u.Roles {
+			roleNames = append(roleNames, r.Name)
+		}
+
+		if err := exp.AddRow(
+			u.ID, u.Username, u.Nickname, u.Email, u.Phone,
+			u.DeptID, status, strings.Join(roleNames, "、"),
+			u.CreatedAt.Format("2006-01-02 15:04:05"),
+		); err != nil {
+			common.FailWith(c, err)
+			return
+		}
+	}
+
+	// 导出是文件下载，不走统一 JSON Response（规则5 约束的是业务数据）。
+	// 响应头必须在写入正文之前设置，因此这里先设头再写流。
+	filename := fmt.Sprintf("users_%s.xlsx", time.Now().Format("20060102150405"))
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("X-Export-Rows", strconv.Itoa(exp.RowCount()))
+
+	if err := exp.WriteToWriter(c.Writer); err != nil {
+		// 响应头已发出，无法再改状态码，只能记录日志
+		logger.Log.Errorf("写出导出文件失败: %v", err)
+	}
 }
 
 // @Summary 修改用户状态

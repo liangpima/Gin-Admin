@@ -35,7 +35,10 @@
       <template #header>
         <div class="card-header">
           <span>管理员列表</span>
-          <el-button type="primary" @click="handleAdd">新增管理员</el-button>
+          <div class="card-header__actions">
+            <el-button :loading="exporting" @click="handleExport">导出</el-button>
+            <el-button type="primary" @click="handleAdd">新增管理员</el-button>
+          </div>
         </div>
       </template>
 
@@ -166,7 +169,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getUserList, createUser, updateUser, deleteUser, resetPassword, updateUserStatus, updateUserRoles, updateUserDept } from '@/api/user'
+import { getUserList, createUser, updateUser, deleteUser, resetPassword, updateUserStatus, updateUserRoles, updateUserDept, exportUsers } from '@/api/user'
 import ImagePicker from '@/components/ImagePicker/index.vue'
 import FormDialog from '@/components/FormDialog/index.vue'
 import MobileAction from '@/components/MobileAction/index.vue'
@@ -292,6 +295,43 @@ function resetForm() {
   form.roleIds = []
   form.status = 1
   form.remark = ''
+}
+
+const exporting = ref(false)
+
+/**
+ * 导出当前筛选条件下的管理员列表。
+ *
+ * 导出走的是不分页查询，因此只带筛选条件、不带分页参数；
+ * 后端有行数上限保护（service.ExportMaxRows）。
+ */
+async function handleExport() {
+  exporting.value = true
+  try {
+    const res: any = await exportUsers({
+      username: queryParams.username,
+      phone: queryParams.phone,
+      status: queryParams.status,
+    })
+
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `users_${formatDateTime(new Date()).replace(/[-: ]/g, '')}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success('导出成功')
+  } catch {
+    // 拦截器已提示具体错误（如无权限、导出失败），此处不重复弹窗
+  } finally {
+    exporting.value = false
+  }
 }
 
 function handleAdd() {
