@@ -7,6 +7,7 @@ import (
 	"go-admin/internal/common"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/model"
+	"go-admin/pkg/utils"
 )
 
 // stubRoleService 只实现 normalizeRoleIDs 会触达的 FindByIDs，
@@ -225,4 +226,214 @@ func TestNormalizePostIDsPropagatesSystemError(t *testing.T) {
 	if common.IsBizError(err) {
 		t.Error("系统错误不应被包装成业务错误")
 	}
+}
+
+const testTenantID uint = 1
+
+// TestValidatePasswordStrength 密码强度策略。
+//
+// 这是唯一一道挡住弱口令的关卡（创建、重置、改密三条路径都走它），
+// 策略一旦被改松，靠人工 review 很难发现，因此逐条钉住。
+func TestValidatePasswordStrength(t *testing.T) {
+	cases := []struct {
+		name     string
+		password string
+		wantErr  bool
+	}{
+		{"大小写字母+数字", "Abc12345", false},
+		{"仅大小写字母", "Abcdefgh", false},
+		{"仅小写+数字", "abc12345", false},
+		{"仅大写+数字", "ABC12345", false},
+		{"太短（5位）", "Abc12", true},
+		{"恰好6位且满足两类", "Abc123", false},
+		{"只有小写字母", "abcdefgh", true},
+		{"只有数字", "12345678", true},
+		{"含空格", "Abc 1234", true},
+		{"含制表符", "Abc\t1234", true},
+		{"空密码", "", true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validatePasswordStrength(c.password)
+			if c.wantErr && err == nil {
+				t.Errorf("密码 %q 应被拒绝，实际通过", c.password)
+			}
+			if !c.wantErr && err != nil {
+				t.Errorf("密码 %q 应通过，实际被拒: %v", c.password, err)
+			}
+			// 密码策略属于业务校验，必须是 400 而不是 500
+			if err != nil && !common.IsBizError(err) {
+				t.Errorf("应为业务错误，实际 %T", err)
+			}
+		})
+	}
+}
+
+func TestUserServiceCreate(t *testing.T) {
+	t.Run("用户名已存在时拒绝", func(t *testing.T) {
+		repo := &mockUserRepo{
+			countByUsernameFn: func(string, uint) (int64, error) { return 1, nil },
+		}
+		svc := newTestUserService(repo)
+
+		err := svc.Create(testTenantID, &dto.CreateUserRequest{
+			Username: "admin", Password: "Abc12345",
+		}, 1)
+
+		assertBizError(t, err, common.CodeBadRequest)
+		if len(repo.createdUsers) != 0 {
+			t.Error("重名时不应写入数据库")
+		}
+	})
+
+	t.Run("弱密码时拒绝", func(t *testing.T) {
+		repo := &mockUserRepo{}
+		svc := newTestUserService(repo)
+
+		err := svc.Create(testTenantID, &dto.CreateUserRequest{
+			Username: "newbie", Password: "123456",
+		}, 1)
+
+		assertBizError(t, err, common.CodeBadRequest)
+		if len(repo.createdUsers) != 0 {
+			t.Error("弱密码时不应写入数据库")
+		}
+	})
+
+	t.Run("成功时密码以 bcrypt 落库而非明文", func(t *testing.T) {
+		repo := &mockUserRepo{}
+		svc := newTestUserService(repo)
+
+		err := svc.Create(testTenantID, &dto.CreateUserRequest{
+			Username: "newbie", Password: "Abc12345",
+			Nickname: "新人", DeptID: 1, Status: common.StatusEnabled,
+		}, 7)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(repo.createdUsers) != 1 {
+			t.Fatalf("应写入 1 个用户，实际 %d", len(repo.createdUsers))
+		}
+		u := repo.createdUsers[0]
+
+		if u.Password == "Abc12345" {
+			t.Fatal("密码被明文存储了")
+		}
+		if !utils.CheckPassword("Abc12345", u.Password) {
+			t.Error("落库的密码无法通过校验")
+		}
+		if u.TenantID != testTenantID {
+			t.Errorf("租户应绑定为 %d，实际 %d", testTenantID, u.TenantID)
+		}
+		if u.CreateBy != 7 || u.UpdateBy != 7 {
+			t.Errorf("操作人应记录为 7，实际 createBy=%d updateBy=%d", u.CreateBy, u.UpdateBy)
+		}
+	})
+}
+
+func TestUserServiceChangePassword(t *testing.T) {
+	hashed, err := utils.HashPassword("OldPass123")
+	if err != nil {
+		t.Fatalf("准备密码哈希失败: %v", err)
+	}
+
+	newSvc := func() (*userService, *mockUserRepo) {
+		repo := &mockUserRepo{
+			findByIDFn: func(uint, uint) (*model.SysUser, error) {
+				return &model.SysUser{
+					TenantBaseModel: common.TenantBaseModel{
+						BaseModel: common.BaseModel{ID: 9},
+						TenantID:  testTenantID,
+					},
+					Password: hashed,
+				}, nil
+			},
+		}
+		return newTestUserService(repo), repo
+	}
+
+	t.Run("用户不存在返回 404", func(t *testing.T) {
+		repo := &mockUserRepo{findByIDFn: func(uint, uint) (*model.SysUser, error) {
+			return nil, errNotFound
+		}}
+		svc := newTestUserService(repo)
+
+		err := svc.ChangePassword(9, &dto.ChangePasswordRequest{
+			OldPassword: "OldPass123", NewPassword: "NewPass123",
+		})
+		assertBizError(t, err, common.CodeNotFound)
+	})
+
+	t.Run("旧密码错误时拒绝", func(t *testing.T) {
+		svc, repo := newSvc()
+
+		err := svc.ChangePassword(9, &dto.ChangePasswordRequest{
+			OldPassword: "WrongPass1", NewPassword: "NewPass123",
+		})
+		assertBizError(t, err, common.CodeBadRequest)
+		if repo.resetPwdCalls != 0 {
+			t.Error("旧密码校验失败时不应写库")
+		}
+	})
+
+	t.Run("新密码强度不足时拒绝", func(t *testing.T) {
+		svc, repo := newSvc()
+
+		err := svc.ChangePassword(9, &dto.ChangePasswordRequest{
+			OldPassword: "OldPass123", NewPassword: "123456",
+		})
+		assertBizError(t, err, common.CodeBadRequest)
+		if repo.resetPwdCalls != 0 {
+			t.Error("新密码强度不足时不应写库")
+		}
+	})
+
+	t.Run("旧密码正确且新密码合规时写入哈希", func(t *testing.T) {
+		// 注意：成功路径会走到 revokeUserTokens（依赖 Redis），
+		// 因此这里只断言「校验通过后确实调用了写库」，不覆盖吊销部分。
+		svc, repo := newSvc()
+
+		_ = svc.ChangePassword(9, &dto.ChangePasswordRequest{
+			OldPassword: "OldPass123", NewPassword: "NewPass123",
+		})
+
+		if repo.resetPwdCalls != 1 {
+			t.Fatalf("应写入一次新密码，实际 %d 次", repo.resetPwdCalls)
+		}
+		if repo.lastResetPwdVal == "NewPass123" {
+			t.Error("新密码被明文写入了")
+		}
+		if !utils.CheckPassword("NewPass123", repo.lastResetPwdVal) {
+			t.Error("写入的密码无法通过校验")
+		}
+	})
+}
+
+func TestUserServiceUpdate(t *testing.T) {
+	t.Run("用户不存在返回 404 而不是 500", func(t *testing.T) {
+		repo := &mockUserRepo{findByIDFn: func(uint, uint) (*model.SysUser, error) {
+			return nil, errNotFound
+		}}
+		svc := newTestUserService(repo)
+
+		err := svc.Update(testTenantID, &dto.UpdateUserRequest{ID: 999}, 1)
+		assertBizError(t, err, common.CodeNotFound)
+	})
+}
+
+func TestUserServiceUpdateRoles(t *testing.T) {
+	t.Run("用户不存在返回 404", func(t *testing.T) {
+		repo := &mockUserRepo{findByIDFn: func(uint, uint) (*model.SysUser, error) {
+			return nil, errNotFound
+		}}
+		svc := newTestUserService(repo)
+
+		err := svc.UpdateRoles(testTenantID, &dto.UpdateUserRolesRequest{ID: 999, RoleIds: []uint{1}})
+		assertBizError(t, err, common.CodeNotFound)
+		if repo.replacedRoles != nil {
+			t.Error("用户不存在时不应改写角色")
+		}
+	})
 }

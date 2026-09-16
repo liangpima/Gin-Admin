@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"go-admin/internal/testsupport"
+
 	_ "github.com/go-sql-driver/mysql"
 	gormmysql "gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -125,4 +127,70 @@ func TestTenantScopeIsNotMutatingSourceDB(t *testing.T) {
 		t.Errorf("TenantScope 污染了源 db 实例，后续查询被附加了 tenant_id 条件: %s",
 			plainTx.Statement.SQL.String())
 	}
+}
+
+// tenantProbe 用于端到端行隔离测试，会真正建表并写入数据
+type tenantProbe struct {
+	ID       uint `gorm:"primarykey"`
+	TenantID uint `gorm:"index"`
+	Name     string
+}
+
+func (tenantProbe) TableName() string { return "tenant_probe" }
+
+// TestTenantScopeIsolatesRows 端到端验证：不同租户的数据真的互相看不见。
+//
+// 上面三个用例都只断言「SQL 里有没有 tenant_id」，DryRun 不执行查询，
+// 因此它们无法发现「条件拼对了但没生效」这类问题。本用例用内存库真正建表、
+// 写入三个租户的数据，再按租户查询，断言返回的行集合。
+//
+// 这是整套测试里最重要的一条 —— 租户隔离失效属于「静默越权」，
+// 接口照常返回 200，只是把别的租户数据也带出来了，靠人工点界面很难发现。
+func TestTenantScopeIsolatesRows(t *testing.T) {
+	db := testsupport.NewDB(t, &tenantProbe{})
+
+	seed := []tenantProbe{
+		{TenantID: 1, Name: "t1-a"},
+		{TenantID: 1, Name: "t1-b"},
+		{TenantID: 2, Name: "t2-a"},
+		{TenantID: 0, Name: "platform"},
+	}
+	if err := db.Create(&seed).Error; err != nil {
+		t.Fatalf("准备数据失败: %v", err)
+	}
+
+	t.Run("租户1 只能看到自己的数据", func(t *testing.T) {
+		var got []tenantProbe
+		if err := TenantScope(db, 1).Find(&got).Error; err != nil {
+			t.Fatalf("查询失败: %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("应返回 2 条，实际 %d 条: %+v", len(got), got)
+		}
+		for _, r := range got {
+			if r.TenantID != 1 {
+				t.Errorf("泄漏了其他租户的数据: %+v", r)
+			}
+		}
+	})
+
+	t.Run("租户2 只能看到自己的数据", func(t *testing.T) {
+		var got []tenantProbe
+		if err := TenantScope(db, 2).Find(&got).Error; err != nil {
+			t.Fatalf("查询失败: %v", err)
+		}
+		if len(got) != 1 || got[0].Name != "t2-a" {
+			t.Errorf("应只返回 t2-a，实际 %+v", got)
+		}
+	})
+
+	t.Run("tenantID=0 为平台级查询，可看到全部", func(t *testing.T) {
+		var got []tenantProbe
+		if err := TenantScope(db, 0).Find(&got).Error; err != nil {
+			t.Fatalf("查询失败: %v", err)
+		}
+		if len(got) != 4 {
+			t.Errorf("应返回全部 4 条，实际 %d", len(got))
+		}
+	})
 }

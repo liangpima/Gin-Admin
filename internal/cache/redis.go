@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,22 @@ import (
 )
 
 var RDB *redis.Client
+
+// ErrNotReady Redis 未初始化。
+//
+// 生产环境下 Redis 是启动强依赖（main.go 初始化失败即退出），
+// 因此这里不会真的发生；但**单元测试**不会去起一个 Redis，
+// 若各函数直接解引用 RDB 就会 panic，导致 service 层完全无法单测。
+// 返回错误而不是 panic：既让服务层可测，也避免误配置时把进程打挂。
+var ErrNotReady = errors.New("redis 未初始化")
+
+// client 返回可用的客户端，未初始化时返回 ErrNotReady
+func client() (*redis.Client, error) {
+	if RDB == nil {
+		return nil, ErrNotReady
+	}
+	return RDB, nil
+}
 
 func Init() error {
 	cfg := config.Cfg.Redis
@@ -31,32 +48,60 @@ func Init() error {
 }
 
 func Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	return RDB.Set(ctx, key, value, expiration).Err()
+	c, err := client()
+	if err != nil {
+		return err
+	}
+	return c.Set(ctx, key, value, expiration).Err()
 }
 
 func Get(ctx context.Context, key string) (string, error) {
-	return RDB.Get(ctx, key).Result()
+	c, err := client()
+	if err != nil {
+		return "", err
+	}
+	return c.Get(ctx, key).Result()
 }
 
 func Del(ctx context.Context, keys ...string) error {
-	return RDB.Del(ctx, keys...).Err()
+	c, err := client()
+	if err != nil {
+		return err
+	}
+	return c.Del(ctx, keys...).Err()
 }
 
 func Exists(ctx context.Context, keys ...string) (bool, error) {
-	n, err := RDB.Exists(ctx, keys...).Result()
+	c, err := client()
+	if err != nil {
+		return false, err
+	}
+	n, err := c.Exists(ctx, keys...).Result()
 	return n > 0, err
 }
 
 func SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
-	return RDB.SetNX(ctx, key, value, expiration).Result()
+	c, err := client()
+	if err != nil {
+		return false, err
+	}
+	return c.SetNX(ctx, key, value, expiration).Result()
 }
 
 func Incr(ctx context.Context, key string) (int64, error) {
-	return RDB.Incr(ctx, key).Result()
+	c, err := client()
+	if err != nil {
+		return 0, err
+	}
+	return c.Incr(ctx, key).Result()
 }
 
 func Expire(ctx context.Context, key string, expiration time.Duration) error {
-	return RDB.Expire(ctx, key, expiration).Err()
+	c, err := client()
+	if err != nil {
+		return err
+	}
+	return c.Expire(ctx, key, expiration).Err()
 }
 
 // ---- refresh token 相关键 ----
@@ -77,20 +122,36 @@ func RefreshTokenSetKey(userID uint) string {
 }
 
 func SAdd(ctx context.Context, key string, members ...interface{}) error {
-	return RDB.SAdd(ctx, key, members...).Err()
+	c, err := client()
+	if err != nil {
+		return err
+	}
+	return c.SAdd(ctx, key, members...).Err()
 }
 
 func SRem(ctx context.Context, key string, members ...interface{}) error {
-	return RDB.SRem(ctx, key, members...).Err()
+	c, err := client()
+	if err != nil {
+		return err
+	}
+	return c.SRem(ctx, key, members...).Err()
 }
 
 func SMembers(ctx context.Context, key string) ([]string, error) {
-	return RDB.SMembers(ctx, key).Result()
+	c, err := client()
+	if err != nil {
+		return nil, err
+	}
+	return c.SMembers(ctx, key).Result()
 }
 
 // Token 黑名单：吊销 access token
 func RevokeToken(ctx context.Context, token string, expiration time.Duration) error {
-	return RDB.Set(ctx, "token:blacklist:"+token, "1", expiration).Err()
+	c, err := client()
+	if err != nil {
+		return err
+	}
+	return c.Set(ctx, "token:blacklist:"+token, "1", expiration).Err()
 }
 
 // IsTokenRevoked 判断 access token 是否已被吊销。
@@ -99,8 +160,15 @@ func RevokeToken(ctx context.Context, token string, expiration time.Duration) er
 // ——「查不到黑名单记录」与「查不了黑名单」被混为一谈，等于 fail-open。
 // 运行期 Redis 抖动的那段时间里，所有已登出的 access token 会重新变成有效。
 // 安全判定必须能区分这两种情况，由调用方决定拒绝策略（见 middleware.Auth）。
+//
+// 客户端未就绪（Init 未调用或失败）时同样返回 error 而非 false：
+// 与抖动同语义 —— 判定不了就不放行，避免退化成 fail-open。
 func IsTokenRevoked(ctx context.Context, token string) (bool, error) {
-	n, err := RDB.Exists(ctx, "token:blacklist:"+token).Result()
+	c, err := client()
+	if err != nil {
+		return false, err
+	}
+	n, err := c.Exists(ctx, "token:blacklist:"+token).Result()
 	if err != nil {
 		return false, err
 	}
@@ -110,14 +178,19 @@ func IsTokenRevoked(ctx context.Context, token string) (bool, error) {
 // DelByPrefix 按前缀批量删除键。
 // 使用 SCAN 分批遍历，避免 KEYS 命令在大 key 空间下阻塞 Redis。
 func DelByPrefix(ctx context.Context, prefix string) error {
+	c, err := client()
+	if err != nil {
+		return err
+	}
+
 	var cursor uint64
 	for {
-		keys, next, err := RDB.Scan(ctx, cursor, prefix+"*", 100).Result()
+		keys, next, err := c.Scan(ctx, cursor, prefix+"*", 100).Result()
 		if err != nil {
 			return err
 		}
 		if len(keys) > 0 {
-			if err := RDB.Del(ctx, keys...).Err(); err != nil {
+			if err := c.Del(ctx, keys...).Err(); err != nil {
 				return err
 			}
 		}
