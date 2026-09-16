@@ -35,7 +35,7 @@ func NewDictService() DictService {
 func (s *dictService) CreateType(name, typ string, operatorID uint) error {
 	existing, _ := s.dictRepo.FindTypeByType(typ)
 	if existing != nil {
-		return errors.New("字典类型已存在")
+		return common.NewBizError("字典类型已存在")
 	}
 
 	dictType := &model.SysDictType{
@@ -71,7 +71,7 @@ func (s *dictService) UpdateType(id uint, name string, operatorID uint) error {
 	dictType, err := s.dictRepo.FindTypeByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("字典类型不存在")
+			return common.NewNotFoundError("字典类型不存在")
 		}
 		return err
 	}

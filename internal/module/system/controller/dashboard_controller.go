@@ -26,7 +26,7 @@ func (ctl *DashboardController) GetStats(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	stats, err := ctl.dashboardService.GetStats(tenantID)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 

@@ -48,18 +48,18 @@ func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// 与密码错误返回相同信息，避免通过错误提示枚举用户名
-			return nil, errors.New("用户名或密码错误")
+			return nil, common.NewBizError("用户名或密码错误")
 		}
 		return nil, err
 	}
 
 	// 先校验密码，再检查账号状态，避免未通过验证即暴露账号状态
 	if !utils.CheckPassword(req.Password, user.Password) {
-		return nil, errors.New("用户名或密码错误")
+		return nil, common.NewBizError("用户名或密码错误")
 	}
 
 	if user.Status == common.StatusDisabled {
-		return nil, errors.New("用户已被禁用")
+		return nil, common.NewBizError("用户已被禁用")
 	}
 
 	accessToken, err := auth.GenerateAccessToken(user.ID, user.Username, user.TenantID, user.DeptID)
@@ -96,7 +96,7 @@ func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
 func (s *authService) RefreshToken(req *dto.RefreshTokenRequest) (*vo.LoginResponse, error) {
 	claims, err := auth.ParseRefreshToken(req.RefreshToken)
 	if err != nil {
-		return nil, errors.New("refresh token无效")
+		return nil, common.NewBizError("refresh token无效")
 	}
 
 	ctx := context.Background()
@@ -105,12 +105,12 @@ func (s *authService) RefreshToken(req *dto.RefreshTokenRequest) (*vo.LoginRespo
 	// revokeUserTokens 会同时清掉集合里的 refresh token，这里是第二道防线：
 	// 万一清理有遗漏，也不至于让一个已被停用的账号重新换出 access token。
 	if revoked, _ := cache.Exists(ctx, fmt.Sprintf("user:token_revoked:%d", claims.UserID)); revoked {
-		return nil, errors.New("token已失效，请重新登录")
+		return nil, common.NewBizError("token已失效，请重新登录")
 	}
 
 	exists, _ := cache.Exists(ctx, cache.RefreshTokenKey(req.RefreshToken))
 	if !exists {
-		return nil, errors.New("refresh token已过期")
+		return nil, common.NewBizError("refresh token已过期")
 	}
 
 	// 轮换：旧 token 立即作废并从用户集合中移除
@@ -191,7 +191,7 @@ func registerRefreshToken(ctx context.Context, userID uint, token string, ttl ti
 func (s *authService) GetUserInfo(userID uint) (*vo.UserInfoResponse, error) {
 	user, err := s.userRepo.FindByID(0, userID)
 	if err != nil {
-		return nil, err
+		return nil, common.NotFoundOrErr(err, "用户不存在")
 	}
 
 	roleIDs, err := s.userRepo.FindRoleIDsByUserID(userID)

@@ -34,7 +34,7 @@ func (ctl *ConfigController) Create(c *gin.Context) {
 		return
 	}
 	if err := ctl.configService.Create(req.Name, req.Key, req.Value, req.Type, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -53,7 +53,7 @@ func (ctl *ConfigController) Update(c *gin.Context) {
 		return
 	}
 	if err := ctl.configService.Update(req.ID, req.Name, req.Key, req.Value, req.Type, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -66,7 +66,7 @@ func (ctl *ConfigController) Delete(c *gin.Context) {
 		return
 	}
 	if err := ctl.configService.Delete(id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -83,7 +83,7 @@ func (ctl *ConfigController) FindList(c *gin.Context) {
 	if req.PageSize < 1 { req.PageSize = 10 }
 	list, total, err := ctl.configService.FindList(req.Name, req.Page, req.PageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)
@@ -92,7 +92,7 @@ func (ctl *ConfigController) FindList(c *gin.Context) {
 func (ctl *ConfigController) SiteInfo(c *gin.Context) {
 	list, err := ctl.configService.FindByPrefix("site.")
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	result := map[string]string{}
@@ -115,7 +115,7 @@ func (ctl *ConfigController) FindByPrefix(c *gin.Context) {
 	}
 	list, err := ctl.configService.FindByPrefix(prefix)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, list)
@@ -139,7 +139,7 @@ func (ctl *ConfigController) BatchSave(c *gin.Context) {
 		items[i] = service.ConfigItem{Key: item.Key, Value: item.Value}
 	}
 	if err := ctl.configService.BatchSave(req.Prefix, items, operatorID); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -173,7 +173,7 @@ func (ctl *ConfigController) UploadCert(c *gin.Context) {
 	// 把商户私钥/证书放在那里等同于公密钥（GET /uploads/certs/xxx.key 即可下载）。
 	saveDir := filepath.Join("runtime", "certs")
 	if err := os.MkdirAll(saveDir, 0700); err != nil {
-		common.Error(c, common.CodeInternalError, "创建目录失败")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -181,7 +181,7 @@ func (ctl *ConfigController) UploadCert(c *gin.Context) {
 	savePath := filepath.Join(saveDir, filename)
 
 	if err := c.SaveUploadedFile(file, savePath); err != nil {
-		common.Error(c, common.CodeInternalError, "保存文件失败")
+		common.FailWith(c, err)
 		return
 	}
 

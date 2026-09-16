@@ -43,7 +43,7 @@ go-admin/
 │   └── casbin/model.conf           # RBAC 模型
 ├── internal/
 │   ├── cache/redis.go              # Redis 封装（可选）
-│   ├── common/                     # 统一响应/错误码/模型/分页/软删除唯一值释放
+│   ├── common/                     # 统一响应/错误码/业务错误语义/模型/分页/软删除唯一值释放
 │   ├── database/mysql.go           # MySQL 连接
 │   ├── logger/zap.go               # Zap 日志
 │   ├── middleware/                 # 中间件
@@ -125,13 +125,58 @@ OrderService   → UserRepository   (跨模块)
 common.Success(c, data)
 common.SuccessWithPage(c, list, total, page, pageSize)
 
-// 失败
-common.Error(c, common.CodeBadRequest, "错误信息")
+// 失败 —— Service 返回的 error 一律用 FailWith，不要手写业务码
+common.FailWith(c, err)
+
+// 参数绑定失败等 Controller 自己产生的错误，直接用 Error
+common.Error(c, common.CodeBadRequest, err.Error())
 common.Unauthorized(c, "未登录")
 common.Forbidden(c, "无权限")
 ```
 
 禁止直接使用 `c.JSON()` 返回业务数据。
+
+#### 错误语义：业务错误 vs 系统错误（必须遵守）
+
+**`common.FailWith(c, err)` 是 Service 错误的唯一出口**，它按错误类型自动选择业务码：
+
+| 错误来源 | 构造方式 | 对外业务码 | 文案 |
+|----------|----------|-----------|------|
+| 业务校验失败（重名、状态冲突、密码太弱…） | `common.NewBizError("...")` | 400 | 原文透出 |
+| 操作目标不存在 | `common.NewNotFoundError("...")` | 404 | 原文透出 |
+| DB / IO / 第三方失败 | 原样 `return err` | 500 | **通用文案**，真实错误只进日志 |
+
+```go
+// ✅ Service：业务错误显式标记，系统错误原样返回
+if s.repo.CountByCode(tenantID, req.Code, 0) > 0 {
+    return common.NewBizError("角色编码已存在")
+}
+user, err := s.repo.FindByID(tenantID, id)
+if err != nil {
+    return common.NotFoundOrErr(err, "用户不存在")   // gorm.ErrRecordNotFound → 404
+}
+return err                                        // 其余 → 500
+
+// ✅ Controller：一行收口
+if err := ctl.userService.Create(tenantID, &req, operatorID); err != nil {
+    common.FailWith(c, err)
+    return
+}
+
+// ❌ 禁止：把所有错误都写成同一个码
+common.Error(c, common.CodeInternalError, err.Error())   // DB 故障与重名混为一谈
+common.Error(c, common.CodeBadRequest, err.Error())      // DB 故障被说成「参数错误」
+```
+
+要点：
+
+- **单条查询必须用 `common.NotFoundOrErr(err, "XX不存在")`**。GORM 查不到记录返回的是
+  `gorm.ErrRecordNotFound`，不转换就会变成 500，用户完全不知道是自己传的 ID 不对
+- Service 内部**复用已包装的方法**，不要绕过它直连 repository。例如 `CloseOrder` 应调
+  `s.GetOrder()` 而非 `s.orderRepo.FindByOrderNo()`，否则 404 语义会丢
+- 系统错误对外统一返回「服务器内部错误」，**不要把原始 error 回给调用方** ——
+  里面常带 SQL、表名字段、内部路径，属于实现细节泄漏；排查所需信息日志里已有
+- 新增业务错误时，先判断它属于上表哪一行，不要图省事直接 `errors.New`
 
 ### 规则6: 所有表必须包含基础字段
 

@@ -40,7 +40,7 @@ func (ctl *LogController) FindOperationLogList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	list, total, err := ctl.logService.FindOperationLogList(tenantID, req.Title, nil, req.Page, req.PageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)
@@ -71,7 +71,7 @@ func (ctl *LogController) FindLoginLogList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	list, total, err := ctl.logService.FindLoginLogList(tenantID, req.Username, nil, req.Page, req.PageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)
@@ -86,7 +86,7 @@ func (ctl *LogController) FindLoginLogList(c *gin.Context) {
 func (ctl *LogController) ClearOperationLogs(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	if err := ctl.logService.ClearOperationLogs(tenantID); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -101,7 +101,7 @@ func (ctl *LogController) ClearOperationLogs(c *gin.Context) {
 func (ctl *LogController) ClearLoginLogs(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	if err := ctl.logService.ClearLoginLogs(tenantID); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)

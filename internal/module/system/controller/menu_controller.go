@@ -27,7 +27,7 @@ func (ctl *MenuController) Create(c *gin.Context) {
 
 	operatorID := common.GetCurrentUserID(c)
 	if err := ctl.menuService.Create(&req, operatorID); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -43,7 +43,7 @@ func (ctl *MenuController) Update(c *gin.Context) {
 
 	operatorID := common.GetCurrentUserID(c)
 	if err := ctl.menuService.Update(&req, operatorID); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -58,7 +58,7 @@ func (ctl *MenuController) Delete(c *gin.Context) {
 	}
 
 	if err := ctl.menuService.Delete(id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (ctl *MenuController) FindByID(c *gin.Context) {
 
 	menu, err := ctl.menuService.FindByID(id)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "菜单不存在")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -84,7 +84,7 @@ func (ctl *MenuController) FindByID(c *gin.Context) {
 func (ctl *MenuController) FindTree(c *gin.Context) {
 	menus, err := ctl.menuService.FindTreeForManage()
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (ctl *MenuController) FindTree(c *gin.Context) {
 func (ctl *MenuController) FindAll(c *gin.Context) {
 	menus, err := ctl.menuService.FindAll()
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 

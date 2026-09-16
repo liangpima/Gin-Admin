@@ -46,7 +46,7 @@ func (ctl *MemberController) Create(c *gin.Context) {
 	}
 
 	if err := ctl.memberService.Create(&req, operatorID, tenantID, digits); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -61,7 +61,7 @@ func (ctl *MemberController) Update(c *gin.Context) {
 	operatorID := common.GetCurrentUserID(c)
 	tenantID := common.GetTenantID(c)
 	if err := ctl.memberService.Update(&req, operatorID, tenantID); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -75,7 +75,7 @@ func (ctl *MemberController) Delete(c *gin.Context) {
 	}
 	tenantID := common.GetTenantID(c)
 	if err := ctl.memberService.Delete(tenantID, id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -90,7 +90,7 @@ func (ctl *MemberController) FindByID(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	member, err := ctl.memberService.FindByID(tenantID, id)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "会员不存在")
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, member)
@@ -105,7 +105,7 @@ func (ctl *MemberController) FindList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	list, total, err := ctl.memberService.FindList(tenantID, &req)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)
@@ -119,7 +119,7 @@ func (ctl *MemberController) UpdateStatus(c *gin.Context) {
 	}
 	tenantID := common.GetTenantID(c)
 	if err := ctl.memberService.UpdateStatus(tenantID, &req); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -133,7 +133,7 @@ func (ctl *MemberController) UpdateTags(c *gin.Context) {
 	}
 	tenantID := common.GetTenantID(c)
 	if err := ctl.memberService.UpdateTags(tenantID, &req); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -143,7 +143,7 @@ func (ctl *MemberController) FindAllLevels(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	levels, err := ctl.levelService.FindAll(tenantID)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, levels)
@@ -153,7 +153,7 @@ func (ctl *MemberController) FindAllTags(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	tags, err := ctl.tagService.FindAll(tenantID)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, tags)
@@ -169,7 +169,7 @@ func (ctl *MemberController) UpdateLastVisit(c *gin.Context) {
 	}
 	tenantID := common.GetTenantID(c)
 	if err := ctl.memberService.UpdateLastVisit(tenantID, req.ID); err != nil {
-		common.Error(c, common.CodeNotFound, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)

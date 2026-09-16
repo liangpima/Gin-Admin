@@ -35,7 +35,7 @@ func (ctl *UserController) Create(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	operatorID := common.GetCurrentUserID(c)
 	if err := ctl.userService.Create(tenantID, &req, operatorID); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -59,7 +59,7 @@ func (ctl *UserController) Update(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	operatorID := common.GetCurrentUserID(c)
 	if err := ctl.userService.Update(tenantID, &req, operatorID); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -81,7 +81,7 @@ func (ctl *UserController) Delete(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	if err := ctl.userService.Delete(tenantID, id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -104,7 +104,7 @@ func (ctl *UserController) FindByID(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	user, err := ctl.userService.FindByID(tenantID, id)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "用户不存在")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -132,7 +132,7 @@ func (ctl *UserController) FindList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	users, total, err := ctl.userService.FindList(tenantID, &req)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (ctl *UserController) UpdateStatus(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	if err := ctl.userService.UpdateStatus(tenantID, &req); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -184,7 +184,7 @@ func (ctl *UserController) ResetPassword(c *gin.Context) {
 	}
 
 	if err := ctl.userService.ResetPassword(tenantID, &req); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -207,7 +207,7 @@ func (ctl *UserController) UpdateRoles(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	if err := ctl.userService.UpdateRoles(tenantID, &req); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -230,7 +230,7 @@ func (ctl *UserController) UpdateDept(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	if err := ctl.userService.UpdateDept(tenantID, &req); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -254,7 +254,7 @@ func (ctl *UserController) ChangePassword(c *gin.Context) {
 
 	userID := common.GetCurrentUserID(c)
 	if err := ctl.userService.ChangePassword(userID, &req); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 

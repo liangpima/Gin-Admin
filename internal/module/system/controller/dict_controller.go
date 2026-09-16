@@ -25,7 +25,7 @@ func (ctl *DictController) CreateType(c *gin.Context) {
 		return
 	}
 	if err := ctl.dictService.CreateType(req.Name, req.Type, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -38,7 +38,7 @@ func (ctl *DictController) DeleteType(c *gin.Context) {
 		return
 	}
 	if err := ctl.dictService.DeleteType(id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -55,7 +55,7 @@ func (ctl *DictController) FindTypeList(c *gin.Context) {
 	if req.PageSize < 1 { req.PageSize = 10 }
 	list, total, err := ctl.dictService.FindTypeList(req.Name, req.Page, req.PageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)
@@ -73,7 +73,7 @@ func (ctl *DictController) CreateData(c *gin.Context) {
 		return
 	}
 	if err := ctl.dictService.CreateData(req.DictType, req.Label, req.Value, req.Sort, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -86,7 +86,7 @@ func (ctl *DictController) DeleteData(c *gin.Context) {
 		return
 	}
 	if err := ctl.dictService.DeleteData(id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -98,7 +98,7 @@ func (ctl *DictController) FindDataList(c *gin.Context) {
 	pageSize := 10
 	list, total, err := ctl.dictService.FindDataList(dictType, page, pageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, page, pageSize)

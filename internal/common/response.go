@@ -3,6 +3,8 @@ package common
 import (
 	"net/http"
 
+	"go-admin/internal/logger"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -70,4 +72,30 @@ func Forbidden(c *gin.Context, message string) {
 		Message: message,
 		Data:    nil,
 	})
+}
+
+// FailWith 输出 handler 中的错误，并按错误语义选择正确的业务码：
+//
+//   - 业务错误（BizError）：按其 Code 返回 400 / 404，原文案透出，用户看得懂也改得了
+//   - 系统错误（DB、IO、签名失败等）：返回 500 + 通用文案，真实错误只记日志
+//
+// 之所以对系统错误隐藏细节：原始 error 常带 SQL、表名字段、内部路径等信息，
+// 直接回给调用方等于泄漏实现细节；而排查所需的信息日志里已经有了。
+//
+// 注意：logger.Log 在单元测试中可能为 nil（未调用 logger.Init），故加空值保护。
+func FailWith(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+
+	if be, ok := AsBizError(err); ok {
+		Error(c, be.Code, be.Msg)
+		return
+	}
+
+	if logger.Log != nil {
+		logger.Log.Errorf("[internal] %s %s -> %v",
+			c.Request.Method, c.Request.URL.Path, err)
+	}
+	Error(c, CodeInternalError, "服务器内部错误")
 }

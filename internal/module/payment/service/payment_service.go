@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"go-admin/internal/common"
 	"go-admin/internal/module/payment/model"
 	paymentRepo "go-admin/internal/module/payment/repository"
 	systemModel "go-admin/internal/module/system/model"
@@ -63,24 +64,34 @@ func (s *PaymentService) CreateOrder(tenantID uint, orderNo, subject, body strin
 }
 
 func (s *PaymentService) GetOrder(tenantID uint, orderNo string) (*model.PayOrder, error) {
-	return s.orderRepo.FindByOrderNo(tenantID, orderNo)
+	order, err := s.orderRepo.FindByOrderNo(tenantID, orderNo)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "订单不存在")
+	}
+	return order, nil
 }
 
 func (s *PaymentService) GetOrderByID(tenantID, id uint) (*model.PayOrder, error) {
-	return s.orderRepo.FindByID(tenantID, id)
+	order, err := s.orderRepo.FindByID(tenantID, id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "订单不存在")
+	}
+	return order, nil
 }
 
 func (s *PaymentService) CloseOrder(tenantID uint, orderNo string) error {
-	order, err := s.orderRepo.FindByOrderNo(tenantID, orderNo)
+	// 走 GetOrder 而非直接查 repository：前者会把「记录不存在」转成 404 业务错误，
+	// 否则 gorm.ErrRecordNotFound 一路透出会变成 500「服务器内部错误」
+	order, err := s.GetOrder(tenantID, orderNo)
 	if err != nil {
 		return err
 	}
 
 	if order.Status == 1 {
-		return fmt.Errorf("订单已支付，无法关闭")
+		return common.NewBizError("订单已支付，无法关闭")
 	}
 	if order.Status == 2 {
-		return fmt.Errorf("订单已关闭")
+		return common.NewBizError("订单已关闭")
 	}
 
 	order.Status = 2
@@ -137,21 +148,22 @@ func (s *PaymentService) RefundOrder(tenantID uint, orderNo string, refundAmt in
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	order, err := s.orderRepo.FindByOrderNo(tenantID, orderNo)
+	// 同上：经 GetOrder 统一把「记录不存在」转成 404
+	order, err := s.GetOrder(tenantID, orderNo)
 	if err != nil {
 		return err
 	}
 
 	if order.Status != 1 {
-		return fmt.Errorf("订单未支付，无法退款")
+		return common.NewBizError("订单未支付，无法退款")
 	}
 
 	if refundAmt <= 0 {
-		return fmt.Errorf("退款金额必须大于0")
+		return common.NewBizError("退款金额必须大于0")
 	}
 
 	if refundAmt > order.Amount {
-		return fmt.Errorf("退款金额不能超过订单金额")
+		return common.NewBizError("退款金额不能超过订单金额")
 	}
 
 	order.Status = 3
@@ -231,11 +243,11 @@ func (s *PaymentService) RefundOrderWithPayInfo(tenantID uint, orderNo string, r
 
 	if order.Status != 1 {
 		statusMap := map[int8]string{0: "待支付", 2: "已关闭", 3: "已退款"}
-		return nil, fmt.Errorf("订单状态为%s，无法退款", statusMap[order.Status])
+		return nil, common.NewBizErrorf("订单状态为%s，无法退款", statusMap[order.Status])
 	}
 
 	if refundAmt > order.Amount {
-		return nil, fmt.Errorf("退款金额不能超过订单金额")
+		return nil, common.NewBizError("退款金额不能超过订单金额")
 	}
 
 	result := &RefundOrderResult{
@@ -255,7 +267,7 @@ func (s *PaymentService) RefundOrderWithPayInfo(tenantID uint, orderNo string, r
 	default:
 		// 没有 default 时，未知渠道会让 err 保持 nil，
 		// 于是在「没有发起任何真实退款」的情况下把订单置为已退款
-		return nil, fmt.Errorf("不支持的支付渠道: %s", order.Channel)
+		return nil, common.NewBizErrorf("不支持的支付渠道: %s", order.Channel)
 	}
 
 	if err != nil {

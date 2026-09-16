@@ -87,7 +87,7 @@ func (s *configService) Update(id uint, name, key, value string, typ int8, opera
 	config, err := s.configRepo.FindByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("配置不存在")
+			return common.NewNotFoundError("配置不存在")
 		}
 		return err
 	}
@@ -106,7 +106,11 @@ func (s *configService) Delete(id uint) error {
 }
 
 func (s *configService) FindByID(id uint) (interface{}, error) {
-	return s.configRepo.FindByID(id)
+	config, err := s.configRepo.FindByID(id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "配置不存在")
+	}
+	return config, nil
 }
 
 func (s *configService) FindByKey(key string) (interface{}, error) {

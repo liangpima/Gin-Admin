@@ -27,7 +27,7 @@ func (ctl *PostController) Create(c *gin.Context) {
 		return
 	}
 	if err := ctl.postService.Create(req.Name, req.Code, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -46,7 +46,7 @@ func (ctl *PostController) Update(c *gin.Context) {
 		return
 	}
 	if err := ctl.postService.Update(req.ID, req.Name, req.Code, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -59,7 +59,7 @@ func (ctl *PostController) Delete(c *gin.Context) {
 		return
 	}
 	if err := ctl.postService.Delete(id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -76,7 +76,7 @@ func (ctl *PostController) FindList(c *gin.Context) {
 	if req.PageSize < 1 { req.PageSize = 10 }
 	list, total, err := ctl.postService.FindList(req.Name, nil, req.Page, req.PageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)

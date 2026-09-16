@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 
+	"go-admin/internal/common"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
 
@@ -45,7 +46,7 @@ func (s *agreementService) Update(id uint, title, content, typ string, sort int,
 	agreement, err := s.agreementRepo.FindByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("记录不存在")
+			return common.NewNotFoundError("记录不存在")
 		}
 		return err
 	}
@@ -65,7 +66,11 @@ func (s *agreementService) Delete(id uint) error {
 }
 
 func (s *agreementService) FindByID(id uint) (*model.SysAgreement, error) {
-	return s.agreementRepo.FindByID(id)
+	agreement, err := s.agreementRepo.FindByID(id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "记录不存在")
+	}
+	return agreement, nil
 }
 
 func (s *agreementService) FindByType(typ string) (*model.SysAgreement, error) {

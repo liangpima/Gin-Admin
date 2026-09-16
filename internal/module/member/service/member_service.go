@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -44,7 +43,7 @@ func (s *memberService) Create(req *dto.CreateMemberRequest, operatorID, tenantI
 	if req.Phone != "" {
 		existing, _ := s.memberRepo.FindByPhone(tenantID, req.Phone)
 		if existing != nil && existing.ID > 0 {
-			return errors.New("手机号已注册")
+			return common.NewBizError("手机号已注册")
 		}
 	}
 
@@ -98,7 +97,7 @@ func (s *memberService) Create(req *dto.CreateMemberRequest, operatorID, tenantI
 func (s *memberService) Update(req *dto.UpdateMemberRequest, operatorID, tenantID uint) error {
 	member, err := s.memberRepo.FindByID(tenantID, req.ID)
 	if err != nil {
-		return errors.New("会员不存在")
+		return common.NewNotFoundError("会员不存在")
 	}
 
 	member.Username = req.Username
@@ -138,7 +137,11 @@ func (s *memberService) Delete(tenantID, id uint) error {
 }
 
 func (s *memberService) FindByID(tenantID, id uint) (*model.Member, error) {
-	return s.memberRepo.FindByID(tenantID, id)
+	member, err := s.memberRepo.FindByID(tenantID, id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "会员不存在")
+	}
+	return member, nil
 }
 
 func (s *memberService) FindList(tenantID uint, req *dto.MemberListRequest) ([]interface{}, int64, error) {
@@ -220,7 +223,7 @@ func (s *memberService) generateMemberNo(tenantID uint, digits int) (string, err
 func (s *memberService) UpdateTags(tenantID uint, req *dto.UpdateMemberTagsRequest) error {
 	_, err := s.memberRepo.FindByID(tenantID, req.ID)
 	if err != nil {
-		return errors.New("会员不存在")
+		return common.NewNotFoundError("会员不存在")
 	}
 	return s.memberRepo.ReplaceTags(tenantID, req.ID, req.TagIds)
 }
@@ -229,7 +232,7 @@ func (s *memberService) UpdateTags(tenantID uint, req *dto.UpdateMemberTagsReque
 func (s *memberService) UpdateLastVisit(tenantID, id uint) error {
 	member, err := s.memberRepo.FindByID(tenantID, id)
 	if err != nil {
-		return errors.New("会员不存在")
+		return common.NewNotFoundError("会员不存在")
 	}
 	now := time.Now()
 	member.LastVisitTime = &now

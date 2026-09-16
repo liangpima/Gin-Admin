@@ -47,7 +47,7 @@ func NewUserService() UserService {
 
 func (s *userService) Create(tenantID uint, req *dto.CreateUserRequest, operatorID uint) error {
 	if s.userRepo.CountByUsername(tenantID, req.Username, 0) > 0 {
-		return errors.New("用户名已存在")
+		return common.NewBizError("用户名已存在")
 	}
 
 	if err := validatePasswordStrength(req.Password); err != nil {
@@ -102,7 +102,7 @@ func (s *userService) Update(tenantID uint, req *dto.UpdateUserRequest, operator
 	user, err := s.userRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("用户不存在")
+			return common.NewNotFoundError("用户不存在")
 		}
 		return err
 	}
@@ -140,7 +140,7 @@ func (s *userService) Delete(tenantID, id uint) error {
 func (s *userService) FindByID(tenantID, id uint) (interface{}, error) {
 	user, err := s.userRepo.FindByID(tenantID, id)
 	if err != nil {
-		return nil, err
+		return nil, common.NotFoundOrErr(err, "用户不存在")
 	}
 
 	type userWithRoles struct {
@@ -248,7 +248,7 @@ func (s *userService) UpdateStatus(tenantID uint, req *dto.StatusRequest) error 
 func (s *userService) UpdateRoles(tenantID uint, req *dto.UpdateUserRolesRequest) error {
 	_, err := s.userRepo.FindByID(tenantID, req.ID)
 	if err != nil {
-		return errors.New("用户不存在")
+		return common.NewNotFoundError("用户不存在")
 	}
 	if err := s.userRepo.ReplaceRoles(req.ID, req.RoleIds); err != nil {
 		return err
@@ -261,7 +261,7 @@ func (s *userService) UpdateRoles(tenantID uint, req *dto.UpdateUserRolesRequest
 func (s *userService) UpdateDept(tenantID uint, req *dto.UpdateUserDeptRequest) error {
 	user, err := s.userRepo.FindByID(tenantID, req.ID)
 	if err != nil {
-		return errors.New("用户不存在")
+		return common.NewNotFoundError("用户不存在")
 	}
 	user.DeptID = req.DeptID
 	return s.userRepo.Update(user)
@@ -281,11 +281,11 @@ func (s *userService) ResetPassword(tenantID uint, req *dto.ResetPasswordRequest
 func (s *userService) ChangePassword(userID uint, req *dto.ChangePasswordRequest) error {
 	user, err := s.userRepo.FindByID(0, userID)
 	if err != nil {
-		return err
+		return common.NotFoundOrErr(err, "用户不存在")
 	}
 
 	if !utils.CheckPassword(req.OldPassword, user.Password) {
-		return errors.New("旧密码错误")
+		return common.NewBizError("旧密码错误")
 	}
 
 	if err := validatePasswordStrength(req.NewPassword); err != nil {
@@ -337,7 +337,7 @@ func (s *userService) revokeUserTokens(userID uint) {
 // validatePasswordStrength 校验密码强度：至少包含大写字母、小写字母、数字中的两种
 func validatePasswordStrength(password string) error {
 	if len(password) < 6 {
-		return errors.New("密码长度不能少于6位")
+		return common.NewBizError("密码长度不能少于6位")
 	}
 	var hasUpper, hasLower, hasDigit bool
 	for _, ch := range password {
@@ -361,10 +361,10 @@ func validatePasswordStrength(password string) error {
 		types++
 	}
 	if types < 2 {
-		return errors.New("密码必须包含大写字母、小写字母、数字中的至少两种")
+		return common.NewBizError("密码必须包含大写字母、小写字母、数字中的至少两种")
 	}
 	if strings.ContainsAny(password, " \t\n\r") {
-		return errors.New("密码不能包含空格")
+		return common.NewBizError("密码不能包含空格")
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"go-admin/internal/common"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
 )
@@ -29,7 +30,11 @@ func (s *fileService) Create(tenantID uint, file *model.SysFile) error {
 }
 
 func (s *fileService) FindByID(tenantID, id uint) (*model.SysFile, error) {
-	return s.fileRepo.FindByID(tenantID, id)
+	file, err := s.fileRepo.FindByID(tenantID, id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "文件不存在")
+	}
+	return file, nil
 }
 
 func (s *fileService) FindList(tenantID uint, name, mimeType, sortOrder string, page, pageSize int) ([]model.SysFile, int64, error) {

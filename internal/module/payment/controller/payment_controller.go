@@ -53,7 +53,7 @@ func (ctl *PaymentController) CreateOrder(c *gin.Context) {
 	)
 	if err != nil {
 		logger.Log.Infof("[payment] create order failed: %v", err)
-		common.Error(c, common.CodeInternalError, "创建订单失败")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (ctl *PaymentController) GetOrder(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	order, err := ctl.paymentService.GetOrder(tenantID, orderNo)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "订单不存在")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -91,8 +91,9 @@ func (ctl *PaymentController) CloseOrder(c *gin.Context) {
 	}
 
 	tenantID := common.GetTenantID(c)
+	// 关闭失败多半是业务状态冲突（已支付/已关闭），应回 400 而不是 500
 	if err := ctl.paymentService.CloseOrder(tenantID, req.OrderNo); err != nil {
-		common.Error(c, common.CodeInternalError, "关闭订单失败")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -111,7 +112,7 @@ func (ctl *PaymentController) FindList(c *gin.Context) {
 
 	list, total, err := ctl.paymentService.FindList(tenantID, subject, int8(status), channel, page, pageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -192,7 +193,7 @@ func (ctl *PaymentController) QueryOrder(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	order, err := ctl.paymentService.GetOrder(tenantID, orderNo)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "订单不存在")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -226,13 +227,13 @@ func (ctl *PaymentController) RefundOrder(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	result, err := ctl.paymentService.RefundOrderWithPayInfo(tenantID, req.OrderNo, req.RefundNo, req.RefundAmt)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
 	if result.Error != nil {
 		logger.Log.Infof("[payment] refund failed: %v", result.Error)
-		common.Error(c, common.CodeInternalError, result.Error.Error())
+		common.FailWith(c, result.Error)
 		return
 	}
 

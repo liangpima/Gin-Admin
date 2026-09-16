@@ -64,7 +64,7 @@ func (ctl *FileController) Upload(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	if err := ctl.fileService.Create(tenantID, dbFile); err != nil {
-		common.Error(c, common.CodeInternalError, "保存记录失败")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (ctl *FileController) FindList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	list, total, err := ctl.fileService.FindList(tenantID, name, mimeType, sortOrder, page, pageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, page, pageSize)
@@ -116,7 +116,7 @@ func (ctl *FileController) FindByID(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	file, err := ctl.fileService.FindByID(tenantID, id)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "文件不存在")
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, file)
@@ -138,14 +138,14 @@ func (ctl *FileController) Delete(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	file, err := ctl.fileService.FindByID(tenantID, id)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "文件不存在")
+		common.FailWith(c, err)
 		return
 	}
 
 	_ = upload.Delete(file.Path)
 
 	if err := ctl.fileService.Delete(tenantID, id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)

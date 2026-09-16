@@ -33,7 +33,7 @@ func (ctl *MemberTagController) Create(c *gin.Context) {
 	operatorID := common.GetCurrentUserID(c)
 	tenantID := common.GetTenantID(c)
 	if err := ctl.tagService.Create(&req, operatorID, tenantID); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -56,7 +56,7 @@ func (ctl *MemberTagController) Update(c *gin.Context) {
 	operatorID := common.GetCurrentUserID(c)
 	tenantID := common.GetTenantID(c)
 	if err := ctl.tagService.Update(&req, operatorID, tenantID); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -77,7 +77,7 @@ func (ctl *MemberTagController) Delete(c *gin.Context) {
 	}
 	tenantID := common.GetTenantID(c)
 	if err := ctl.tagService.Delete(tenantID, id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -101,7 +101,7 @@ func (ctl *MemberTagController) FindList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	list, total, err := ctl.tagService.FindList(tenantID, &req)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)

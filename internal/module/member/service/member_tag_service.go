@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 
 	"go-admin/internal/common"
 	"go-admin/internal/module/member/dto"
@@ -47,7 +46,7 @@ func (s *memberTagService) Create(req *dto.CreateMemberTagRequest, operatorID, t
 func (s *memberTagService) Update(req *dto.UpdateMemberTagRequest, operatorID, tenantID uint) error {
 	tag, err := s.tagRepo.FindByID(tenantID, req.ID)
 	if err != nil {
-		return errors.New("标签不存在")
+		return common.NewNotFoundError("标签不存在")
 	}
 	tag.Name = req.Name
 	tag.Color = req.Color

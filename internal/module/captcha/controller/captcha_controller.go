@@ -19,7 +19,7 @@ func NewCaptchaController() *CaptchaController {
 func (ctl *CaptchaController) Generate(c *gin.Context) {
 	resp, err := ctl.captchaService.Generate()
 	if err != nil {
-		common.Error(c, common.CodeInternalError, "生成验证码失败")
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, resp)
@@ -34,7 +34,7 @@ func (ctl *CaptchaController) Verify(c *gin.Context) {
 
 	resp, err := ctl.captchaService.Verify(req.Token, req.Points)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, "验证失败")
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, resp)

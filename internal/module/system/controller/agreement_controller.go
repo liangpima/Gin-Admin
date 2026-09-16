@@ -28,7 +28,7 @@ func (ctl *AgreementController) Create(c *gin.Context) {
 		return
 	}
 	if err := ctl.agreementService.Create(req.Title, req.Content, req.Type, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -48,7 +48,7 @@ func (ctl *AgreementController) Update(c *gin.Context) {
 		return
 	}
 	if err := ctl.agreementService.Update(req.ID, req.Title, req.Content, req.Type, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -61,7 +61,7 @@ func (ctl *AgreementController) Delete(c *gin.Context) {
 		return
 	}
 	if err := ctl.agreementService.Delete(id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, nil)
@@ -84,7 +84,7 @@ func (ctl *AgreementController) FindList(c *gin.Context) {
 	}
 	list, total, err := ctl.agreementService.FindList(req.Name, req.Type, req.Status, req.Page, req.PageSize)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)
@@ -98,7 +98,7 @@ func (ctl *AgreementController) FindByType(c *gin.Context) {
 	}
 	agreement, err := ctl.agreementService.FindByType(typ)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.Success(c, agreement)

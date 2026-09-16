@@ -35,7 +35,7 @@ func (ctl *PointsLogController) FindList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	list, total, err := ctl.pointsLogService.FindList(tenantID, &req)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 	common.SuccessWithPage(c, list, total, req.Page, req.PageSize)

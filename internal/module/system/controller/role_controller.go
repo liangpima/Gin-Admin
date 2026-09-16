@@ -28,7 +28,7 @@ func (ctl *RoleController) Create(c *gin.Context) {
 	operatorID := common.GetCurrentUserID(c)
 	tenantID := common.GetTenantID(c)
 	if err := ctl.roleService.Create(&req, operatorID, tenantID); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -45,7 +45,7 @@ func (ctl *RoleController) Update(c *gin.Context) {
 	operatorID := common.GetCurrentUserID(c)
 	tenantID := common.GetTenantID(c)
 	if err := ctl.roleService.Update(&req, operatorID, tenantID); err != nil {
-		common.Error(c, common.CodeBadRequest, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (ctl *RoleController) Delete(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	if err := ctl.roleService.Delete(tenantID, id); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -78,7 +78,7 @@ func (ctl *RoleController) FindByID(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	role, err := ctl.roleService.FindByID(tenantID, id)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "角色不存在")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -95,7 +95,7 @@ func (ctl *RoleController) FindList(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	roles, total, err := ctl.roleService.FindList(tenantID, &req)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -111,7 +111,7 @@ func (ctl *RoleController) UpdateStatus(c *gin.Context) {
 
 	tenantID := common.GetTenantID(c)
 	if err := ctl.roleService.UpdateStatus(tenantID, &req); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (ctl *RoleController) FindAll(c *gin.Context) {
 	tenantID := common.GetTenantID(c)
 	roles, err := ctl.roleService.FindAll(tenantID)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 

@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"errors"
-
 	"go-admin/internal/common"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/service"
@@ -29,7 +27,7 @@ func (ctl *DeptController) Create(c *gin.Context) {
 
 	operatorID := common.GetCurrentUserID(c)
 	if err := ctl.deptService.Create(&req, operatorID); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -45,7 +43,7 @@ func (ctl *DeptController) Update(c *gin.Context) {
 
 	operatorID := common.GetCurrentUserID(c)
 	if err := ctl.deptService.Update(&req, operatorID); err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -59,13 +57,10 @@ func (ctl *DeptController) Delete(c *gin.Context) {
 		return
 	}
 
+	// service 已用 BizError 标记「存在下级部门」，FailWith 会自动给出 400；
+	// 其余（删除失败等）为系统错误，返回 500
 	if err := ctl.deptService.Delete(id); err != nil {
-		// 前置条件不满足属于调用方问题，按 400 返回
-		if errors.Is(err, service.ErrDeptHasChildren) {
-			common.Error(c, common.CodeBadRequest, err.Error())
-			return
-		}
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 
@@ -81,7 +76,7 @@ func (ctl *DeptController) FindByID(c *gin.Context) {
 
 	dept, err := ctl.deptService.FindByID(id)
 	if err != nil {
-		common.Error(c, common.CodeNotFound, "部门不存在")
+		common.FailWith(c, err)
 		return
 	}
 
@@ -91,7 +86,7 @@ func (ctl *DeptController) FindByID(c *gin.Context) {
 func (ctl *DeptController) FindTree(c *gin.Context) {
 	depts, err := ctl.deptService.FindTree()
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 

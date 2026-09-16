@@ -79,7 +79,9 @@ func (ctl *AuthController) Login(c *gin.Context) {
 	if err != nil {
 		recordLoginFailure(ctx, ipKey, accountKey)
 		ctl.saveLoginLog(c, 0, req.Username, 0, err.Error())
-		common.Error(c, common.CodeBadRequest, err.Error())
+		// 失败原因按语义区分：凭证错误/账号禁用等业务问题回 400，
+		// Redis 不可用等系统问题回 500 —— 后者不该记成「请求参数错误」
+		common.FailWith(c, err)
 		return
 	}
 
@@ -167,7 +169,7 @@ func (ctl *AuthController) GetUserInfo(c *gin.Context) {
 
 	resp, err := ctl.authService.GetUserInfo(userID)
 	if err != nil {
-		common.Error(c, common.CodeInternalError, err.Error())
+		common.FailWith(c, err)
 		return
 	}
 

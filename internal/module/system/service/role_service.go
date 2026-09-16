@@ -38,7 +38,7 @@ func NewRoleService() RoleService {
 
 func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID, tenantID uint) error {
 	if s.roleRepo.CountByCode(tenantID, req.Code, 0) > 0 {
-		return errors.New("角色编码已存在")
+		return common.NewBizError("角色编码已存在")
 	}
 
 	role := &model.SysRole{
@@ -73,13 +73,13 @@ func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID, tenantID ui
 
 func (s *roleService) Update(req *dto.UpdateRoleRequest, operatorID, tenantID uint) error {
 	if s.roleRepo.CountByCode(tenantID, req.Code, req.ID) > 0 {
-		return errors.New("角色编码已存在")
+		return common.NewBizError("角色编码已存在")
 	}
 
 	role, err := s.roleRepo.FindByID(tenantID, req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("角色不存在")
+			return common.NewNotFoundError("角色不存在")
 		}
 		return err
 	}
@@ -129,7 +129,11 @@ func (s *roleService) syncPolicies() {
 }
 
 func (s *roleService) FindByID(tenantID, id uint) (interface{}, error) {
-	return s.roleRepo.FindByID(tenantID, id)
+	role, err := s.roleRepo.FindByID(tenantID, id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "角色不存在")
+	}
+	return role, nil
 }
 
 func (s *roleService) FindByIDs(tenantID uint, ids []uint) ([]model.SysRole, error) {

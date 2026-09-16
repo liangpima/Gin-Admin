@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 
 	"go-admin/internal/common"
 	"go-admin/internal/module/member/dto"
@@ -49,7 +48,7 @@ func (s *memberLevelService) Create(req *dto.CreateMemberLevelRequest, operatorI
 func (s *memberLevelService) Update(req *dto.UpdateMemberLevelRequest, operatorID, tenantID uint) error {
 	level, err := s.levelRepo.FindByID(tenantID, req.ID)
 	if err != nil {
-		return errors.New("等级不存在")
+		return common.NewNotFoundError("等级不存在")
 	}
 	level.Name = req.Name
 	level.MinPoints = req.MinPoints

@@ -15,7 +15,7 @@ import (
 //
 // 用哨兵错误暴露出来，让 Controller 能把它归为 400（参数/前置条件不满足），
 // 而不是笼统地返回 500 —— 这是调用方的用法问题，不是服务端故障。
-var ErrDeptHasChildren = errors.New("存在下级部门，请先删除下级部门")
+var ErrDeptHasChildren = common.NewBizError("存在下级部门，请先删除下级部门")
 
 type DeptService interface {
 	Create(req *dto.CreateDeptRequest, operatorID uint) error
@@ -57,7 +57,7 @@ func (s *deptService) Update(req *dto.UpdateDeptRequest, operatorID uint) error 
 	dept, err := s.deptRepo.FindByID(req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("部门不存在")
+			return common.NewNotFoundError("部门不存在")
 		}
 		return err
 	}
@@ -91,7 +91,11 @@ func (s *deptService) Delete(id uint) error {
 }
 
 func (s *deptService) FindByID(id uint) (interface{}, error) {
-	return s.deptRepo.FindByID(id)
+	dept, err := s.deptRepo.FindByID(id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "部门不存在")
+	}
+	return dept, nil
 }
 
 func (s *deptService) FindTree() ([]model.SysDept, error) {

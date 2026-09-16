@@ -69,7 +69,7 @@ func (s *menuService) Update(req *dto.UpdateMenuRequest, operatorID uint) error 
 	menu, err := s.menuRepo.FindByID(req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("菜单不存在")
+			return common.NewNotFoundError("菜单不存在")
 		}
 		return err
 	}
@@ -116,7 +116,11 @@ func (s *menuService) syncPolicies() {
 }
 
 func (s *menuService) FindByID(id uint) (interface{}, error) {
-	return s.menuRepo.FindByID(id)
+	menu, err := s.menuRepo.FindByID(id)
+	if err != nil {
+		return nil, common.NotFoundOrErr(err, "菜单不存在")
+	}
+	return menu, nil
 }
 
 func (s *menuService) FindAll() ([]model.SysMenu, error) {
