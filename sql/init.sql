@@ -181,7 +181,11 @@ CREATE TABLE IF NOT EXISTS `sys_dict_data` (
   `deleted_at` datetime DEFAULT NULL COMMENT '删除时间',
   `remark` varchar(500) DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
-  KEY `idx_dict_type` (`dict_type`),
+  -- 同一类型下键值唯一。软删除时 DeleteData 会改写 value（追加 _del_<id>）释放该组合，
+  -- 所以「删掉再建同名键值」依然可行。
+  -- 刻意不再单独建 idx_dict_type：复合索引的最左前缀就是 dict_type，
+  -- 单列索引属于重复，只会白增写入成本。
+  UNIQUE KEY `uk_dict_type_value` (`dict_type`, `value`),
   KEY `idx_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='字典数据表';
 
@@ -536,6 +540,7 @@ INSERT IGNORE INTO `sys_menu` (`id`, `parent_id`, `name`, `path`, `component`, `
 (322, 6, 'PostDelete', '', '', '', '删除', 2, 'system:post:delete', 3, 1, 1, 1, 0, 1, 1),
 (330, 8, 'DictAdd', '', '', '', '新增', 2, 'system:dict:add', 1, 1, 1, 1, 0, 1, 1),
 (331, 8, 'DictDelete', '', '', '', '删除', 2, 'system:dict:delete', 2, 1, 1, 1, 0, 1, 1),
+(332, 8, 'DictEdit', '', '', '', '编辑', 2, 'system:dict:edit', 3, 1, 1, 1, 0, 1, 1),
 (340, 7, 'ConfigAdd', '', '', '', '新增', 2, 'system:config:add', 1, 1, 1, 1, 0, 1, 1),
 (341, 7, 'ConfigEdit', '', '', '', '编辑', 2, 'system:config:edit', 2, 1, 1, 1, 0, 1, 1),
 (342, 7, 'ConfigDelete', '', '', '', '删除', 2, 'system:config:delete', 3, 1, 1, 1, 0, 1, 1),
@@ -570,7 +575,7 @@ INSERT IGNORE INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
 (1, 20), (1, 21), (1, 22), (1, 23), (1, 24),
 (1, 100), (1, 101), (1, 102), (1, 103), (1, 200), (1, 201), (1, 202),
 (1, 300), (1, 301), (1, 302), (1, 310), (1, 311), (1, 312),
-(1, 320), (1, 321), (1, 322), (1, 330), (1, 331), (1, 340),
+(1, 320), (1, 321), (1, 322), (1, 330), (1, 331), (1, 332), (1, 340),
 (1, 341), (1, 342), (1, 350), (1, 360), (1, 370), (1, 371),
 (1, 372), (1, 400), (1, 401), (1, 402), (1, 410), (1, 411),
 (1, 412), (1, 420), (1, 421), (1, 422), (1, 430), (1, 431);
@@ -613,3 +618,29 @@ INSERT IGNORE INTO `sys_config` (`name`, `config_key`, `value`, `type`, `create_
 ('短信签名', 'sms.sign_name', '', 1, 1, 1, NOW(), NOW()),
 ('短信验证码模板', 'sms.tpl_verify_code', '', 1, 1, 1, NOW(), NOW()),
 ('短信验证码模板-启用', 'sms.tpl_verify_code_enabled', '1', 1, 1, 1, NOW(), NOW());
+
+-- 数据字典种子：用户状态、支付订单状态、支付渠道
+--
+-- 为什么要预置：字典是**引用数据**，业务页面按类型取选项来渲染下拉框和标签。
+-- 库里一条都没有时，接入字典的页面取不到任何选项 —— 界面上表现为下拉空白、
+-- 标签回显成裸数字。这三组正是框架自带页面（用户管理、支付订单）用到的枚举，
+-- 因此随初始化脚本一起建好；其余业务字典由使用方在「系统管理 → 数据字典」里按需维护。
+--
+-- 刻意不指定 id：靠 uk_type / uk_dict_type_value 保证重复执行为空操作，
+-- 若写死 id，一旦该 id 已被别的字典占用，INSERT IGNORE 会跳过类型却仍插入数据，
+-- 反而造出「类型不存在」的孤儿字典数据。
+INSERT IGNORE INTO `sys_dict_type` (`name`, `type`, `status`, `create_by`, `update_by`, `created_at`, `updated_at`) VALUES
+('用户状态', 'sys_user_status', 1, 1, 1, NOW(), NOW()),
+('支付订单状态', 'sys_pay_order_status', 1, 1, 1, NOW(), NOW()),
+('支付渠道', 'sys_pay_channel', 1, 1, 1, NOW(), NOW());
+
+INSERT IGNORE INTO `sys_dict_data` (`dict_type`, `label`, `value`, `sort`, `list_class`, `status`, `create_by`, `update_by`, `created_at`, `updated_at`) VALUES
+('sys_user_status', '正常', '1', 1, 'success', 1, 1, 1, NOW(), NOW()),
+('sys_user_status', '停用', '0', 2, 'danger', 1, 1, 1, NOW(), NOW()),
+('sys_pay_order_status', '待支付', '0', 1, 'info', 1, 1, 1, NOW(), NOW()),
+('sys_pay_order_status', '已支付', '1', 2, 'success', 1, 1, 1, NOW(), NOW()),
+('sys_pay_order_status', '已关闭', '2', 3, 'warning', 1, 1, 1, NOW(), NOW()),
+('sys_pay_order_status', '已退款', '3', 4, 'danger', 1, 1, 1, NOW(), NOW()),
+('sys_pay_order_status', '退款中', '4', 5, 'primary', 1, 1, 1, NOW(), NOW()),
+('sys_pay_channel', '微信支付', 'wechat', 1, 'success', 1, 1, 1, NOW(), NOW()),
+('sys_pay_channel', '支付宝', 'alipay', 2, 'primary', 1, 1, 1, NOW(), NOW());

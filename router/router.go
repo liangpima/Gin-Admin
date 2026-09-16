@@ -53,6 +53,7 @@ const (
 
 	permDictList   = "system:dict:list"
 	permDictAdd    = "system:dict:add"
+	permDictEdit   = "system:dict:edit"
 	permDictDelete = "system:dict:delete"
 
 	permConfigList   = "system:config:list"
@@ -253,11 +254,16 @@ func Setup(mode string) *gin.Engine {
 			protected(system, http.MethodPost, "/config/upload", permConfigEdit, configController.UploadCert)
 
 			protected(system, http.MethodPost, "/dict/type", permDictAdd, dictController.CreateType)
+			protected(system, http.MethodPut, "/dict/type/:id", permDictEdit, dictController.UpdateType)
 			protected(system, http.MethodDelete, "/dict/type/:id", permDictDelete, dictController.DeleteType)
 			protected(system, http.MethodGet, "/dict/type/list", permDictList, dictController.FindTypeList)
 			protected(system, http.MethodPost, "/dict/data", permDictAdd, dictController.CreateData)
+			protected(system, http.MethodPut, "/dict/data/:id", permDictEdit, dictController.UpdateData)
 			protected(system, http.MethodDelete, "/dict/data/:id", permDictDelete, dictController.DeleteData)
 			protected(system, http.MethodGet, "/dict/data/list", permDictList, dictController.FindDataList)
+			// 仅要求登录态：这是业务页面渲染下拉/标签用的引用数据，
+			// 卡 dict:list 会让没有字典管理权限的操作员看到空下拉（详见 handler 注释）
+			protected(system, http.MethodGet, "/dict/data/type/:type", "", dictController.FindDataByType)
 
 			protected(system, http.MethodGet, "/log/operation", permLogList, logController.FindOperationLogList)
 			protected(system, http.MethodGet, "/log/login", permLogList, logController.FindLoginLogList)
