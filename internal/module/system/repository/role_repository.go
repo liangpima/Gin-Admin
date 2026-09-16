@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
@@ -19,7 +21,8 @@ type RoleRepository interface {
 	ReplaceMenus(tenantID, roleID uint, menuIDs []uint) error
 	FindMenusByRoleID(tenantID, roleID uint) ([]model.SysMenu, error)
 	FindMenuIDsByRoleID(tenantID, roleID uint) ([]uint, error)
-	CountByCode(tenantID uint, code string, excludeID uint) int64
+	// CountByCode 按角色编码统计，**不做租户过滤**（详见实现处注释）
+	CountByCode(code string, excludeID uint) (int64, error)
 	FindByIDs(tenantID uint, ids []uint) ([]model.SysRole, error)
 }
 
@@ -33,7 +36,13 @@ func NewRoleRepository() RoleRepository {
 
 // Create 创建角色；TenantID 由 Service 层赋值
 func (r *roleRepository) Create(role *model.SysRole) error {
-	return r.db.Create(role).Error
+	if err := r.db.Create(role).Error; err != nil {
+		if database.IsDuplicateKey(err) {
+			return fmt.Errorf("%w: %w", common.ErrDuplicateKey, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *roleRepository) FindByID(tenantID, id uint) (*model.SysRole, error) {
@@ -85,7 +94,14 @@ func (r *roleRepository) Update(tenantID uint, role *model.SysRole) error {
 	if count == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	return r.db.Model(role).Select("Name", "Code", "Sort", "Status", "DataScope", "Remark", "UpdateBy").Updates(role).Error
+	// 改编码时可能撞 uk_code（全局唯一），交给 Service 转成业务提示
+	if err := r.db.Model(role).Select("Name", "Code", "Sort", "Status", "DataScope", "Remark", "UpdateBy").Updates(role).Error; err != nil {
+		if database.IsDuplicateKey(err) {
+			return fmt.Errorf("%w: %w", common.ErrDuplicateKey, err)
+		}
+		return err
+	}
+	return nil
 }
 
 // Delete 软删除角色，并清理其用户/菜单关联。
@@ -170,14 +186,30 @@ func (r *roleRepository) FindMenuIDsByRoleID(tenantID, roleID uint) ([]uint, err
 	return menuIDs, err
 }
 
-func (r *roleRepository) CountByCode(tenantID uint, code string, excludeID uint) int64 {
+// CountByCode 统计同编码角色数，**刻意不做租户过滤**。
+//
+// sys_role 的 `uk_code` 是全局唯一索引，这一点同样是设计必需的：
+// Casbin 策略的主体是**角色 code**，而域是常量 "default"
+// （见 config/casbin/model.conf 与 middleware.SyncPoliciesFromRoleMenus）。
+// 若允许两个租户使用相同角色 code，两条策略会合并成同一条，
+// 持有该角色的用户就会继承对方租户授予的权限 —— 跨租户权限泄漏。
+//
+// 因此角色 code 必须全局唯一，重名校验也必须按全局来。
+// 早前按租户过滤，导致租户 B 建同名角色时校验通过、插入却撞唯一索引，
+// 对外是 500「服务器内部错误」。
+//
+// 返回 error 的理由同 CountByUsername：吞掉 Count 的失败等于把
+// 「数据库故障」误判为「不重名」。
+func (r *roleRepository) CountByCode(code string, excludeID uint) (int64, error) {
 	var count int64
-	query := common.TenantScope(r.db, tenantID).Model(&model.SysRole{}).Where("code = ?", code)
+	query := r.db.Model(&model.SysRole{}).Where("code = ?", code)
 	if excludeID > 0 {
 		query = query.Where("id != ?", excludeID)
 	}
-	query.Count(&count)
-	return count
+	if err := query.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *roleRepository) FindByIDs(tenantID uint, ids []uint) ([]model.SysRole, error) {

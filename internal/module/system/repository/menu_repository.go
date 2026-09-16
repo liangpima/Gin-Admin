@@ -17,6 +17,8 @@ type MenuRepository interface {
 	Delete(id uint) error
 	// FindParentID 返回菜单的父节点 ID，ok=false 表示菜单不存在（用于父级成环校验）
 	FindParentID(id uint) (uint, bool, error)
+	// CountByParentID 统计直接子节点数（删除前确认没有下级）
+	CountByParentID(id uint) (int64, error)
 }
 
 type menuRepository struct {
@@ -83,4 +85,16 @@ func (r *menuRepository) FindParentID(id uint) (uint, bool, error) {
 		return 0, false, nil
 	}
 	return parents[0], true, nil
+}
+
+// CountByParentID 统计菜单的直接子节点数。
+//
+// 只统计「直接」子节点即可：判断能否删除只需知道有没有下一层，
+// 直接子节点为空时更深层必然也不存在，无需递归统计整棵子树。
+func (r *menuRepository) CountByParentID(id uint) (int64, error) {
+	var count int64
+	if err := r.db.Model(&model.SysMenu{}).Where("parent_id = ?", id).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }

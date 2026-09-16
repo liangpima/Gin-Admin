@@ -353,6 +353,87 @@ npm run dev
 - 用户名：`admin`
 - 密码：`admin123`
 
+> ⚠️ **首次登录后请立即修改密码。** 这组凭据由 `sql/init.sql` 预置，任何了解本项目的人都知道。
+
+## 部署（生产环境）
+
+### 容器化部署（推荐）
+
+Linux 服务器可用，不依赖 Windows 脚本：
+
+```bash
+cp .env.example .env            # 填写 MYSQL_PASSWORD / MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET
+vi .env                         # 这些变量**没有默认值**，缺任何一个 compose 会直接报错退出
+docker compose up -d --build
+docker compose ps               # 等 mysql / app 变成 healthy
+# 访问 http://<服务器IP>:8080（端口由 .env 的 WEB_PORT 控制）
+```
+
+### 数据库升级
+
+⚠️ **不要手工逐条执行 `sql/migrations/` 下的脚本** —— 漏掉一个不会有任何提示，
+直到某个接口报 `Unknown column` 才被发现（例如岗位表缺 `tenant_id`，岗位页直接报错）。
+用内置的迁移执行器：
+
+```bash
+make migrate-status   # 查看待执行的迁移（只读，不执行 SQL）
+make migrate          # 执行所有未应用的迁移
+```
+
+容器部署时用镜像内的执行器：
+
+```bash
+docker compose exec app /app/migrate -status
+docker compose exec app /app/migrate
+```
+
+执行器把已应用的版本记在 `schema_migrations` 表，重复执行是安全的。
+**注意它不做事务回滚** —— MySQL 的 DDL 会隐式提交，事务包不住；
+因此迁移脚本必须幂等，这也是本项目既有约定（先用 `information_schema` 判断再操作）。
+
+完整说明见 **[deploy/README.md](deploy/README.md)**，覆盖服务拓扑与端口暴露面、
+数据库初始化与**升级迁移**、必须检查的配置项、备份、健康检查、排障，
+以及不用容器时的 systemd 部署方式。
+
+> `deploy/validate.py` 是一个离线校验脚本（无需 Docker），用于检查
+> compose 引用完整性、`.dockerignore` 是否误排了构建必需目录、nginx 关键行为等。
+> 改动部署文件后建议跑一次：
+>
+> ```bash
+> pip install pyyaml          # 仅此一个依赖
+> python deploy/validate.py
+> ```
+
+### 不使用容器
+
+```bash
+# 交叉编译（Go 支持跨平台编译，目标机无需安装 Go）
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o go-admin ./cmd/server
+
+# 前端产物（交给已有 nginx）
+cd web && npm ci && npm run build      # 产物在 web/dist
+```
+
+⚠️ 路径类配置（`log.filename` / `upload.save_path` / `casbin.model_path`）都是
+**相对工作目录**的，必须从应用根目录启动。用 systemd / supervisor 部署时要显式设置
+`WorkingDirectory`，否则 casbin 加载失败会导致服务**拒绝启动**（这是有意的：
+避免在"无鉴权"状态下对外提供服务）。
+
+注意：Go 服务**不托管前端页面**，只提供 `/api/v1`、`/uploads`、`/swagger`、`/health`。
+前端需由 nginx 托管并反代 `/api` 与 `/uploads`，配置可参考 `deploy/nginx/default.conf`。
+其中 `/uploads` 必须反代到后端而非直接映射磁盘目录 —— 后端在该路径上挂了
+`middleware.UploadSecurity()` 补 CSP 沙箱响应头，直接映射会让白名单里的 `.svg`
+变成同源存储型 XSS 落点。
+
+### 健康检查
+
+| 端点 | 用途 |
+|------|------|
+| `/health` | liveness，只判断进程存活，**不探测依赖**（依赖抖动不应触发容器重启） |
+| `/health/ready` | readiness，探测 MySQL 与 Redis，任一不可用返回 **503** |
+
+两者都不需要认证，且只返回 `ok` / `down`，不返回具体错误（避免暴露内网拓扑）。
+
 ## 配置说明
 
 ### 环境变量

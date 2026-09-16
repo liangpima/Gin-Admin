@@ -33,9 +33,17 @@ func NewDictService() DictService {
 }
 
 func (s *dictService) CreateType(name, typ string, operatorID uint) error {
-	existing, _ := s.dictRepo.FindTypeByType(typ)
-	if existing != nil {
-		return common.NewBizError("字典类型已存在")
+	// 注意：不能用 `existing, _ := ...; if existing != nil` 判断重名 ——
+	// FindTypeByType 无论查没查到都返回非 nil 指针（&dictType, err），
+	// 该条件恒为真，会让新建字典类型永远报「已存在」。
+	// 判定依据只能是 err：nil 表示查到，ErrRecordNotFound 表示可以创建。
+	existing, err := s.dictRepo.FindTypeByType(typ)
+	if err == nil {
+		if existing != nil && existing.ID > 0 {
+			return common.NewBizError("字典类型已存在")
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 
 	dictType := &model.SysDictType{
@@ -48,7 +56,14 @@ func (s *dictService) CreateType(name, typ string, operatorID uint) error {
 		Status: 1,
 	}
 
-	return s.dictRepo.CreateType(dictType)
+	if err := s.dictRepo.CreateType(dictType); err != nil {
+		// Count 校验有时间窗口，并发下靠全局唯一的 uk_type 兜底
+		if errors.Is(err, common.ErrDuplicateKey) {
+			return common.NewBizError("字典类型已存在")
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *dictService) FindTypeList(name string, page, pageSize int) ([]interface{}, int64, error) {

@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"bytes"
-	"io"
 	"time"
 
 	"go-admin/internal/common"
@@ -17,12 +15,13 @@ func Logger() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		query := c.Request.URL.RawQuery
 
-		var bodyBytes []byte
-		if c.Request.Body != nil {
-			bodyBytes, _ = io.ReadAll(c.Request.Body)
-			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		}
-
+		// 这里**刻意不读取请求体**。
+		//
+		// 早前这里 io.ReadAll 了整个 body 再塞回 c.Request.Body，但读取结果
+		// 从未被使用 —— 访问日志只记录 status/method/path/ip/latency。
+		// 代价是每个请求都在内存里多复制一份 body：上传接口按 upload.max_size
+		// 最大 10MB，N 个并发上传就是 10N MB 的额外占用，而需要落库的请求体
+		// 已由 OperationLog 中间件按需读取。
 		c.Next()
 
 		latency := time.Since(start)

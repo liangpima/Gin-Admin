@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
@@ -33,7 +35,14 @@ func NewDictRepository() DictRepository {
 }
 
 func (r *dictRepository) CreateType(dictType *model.SysDictType) error {
-	return r.db.Create(dictType).Error
+	if err := r.db.Create(dictType).Error; err != nil {
+		// uk_type 是全局唯一索引（字典类型是全局表，type 即字典数据的外键键名）
+		if database.IsDuplicateKey(err) {
+			return fmt.Errorf("%w: %w", common.ErrDuplicateKey, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *dictRepository) FindTypeByID(id uint) (*model.SysDictType, error) {

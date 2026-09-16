@@ -49,7 +49,7 @@ export interface PointsLogItem {
 }
 
 export function getMemberList(params: { phone?: string; nickname?: string; levelId?: number; status?: number; page: number; pageSize: number }) {
-  return request.get<any, PageResult<MemberItem>>('/member/list', { params })
+  return request.get<any, Result<PageResult<MemberItem>>>('/member/list', { params })
 }
 
 export function createMember(data: any) {
@@ -73,7 +73,7 @@ export function updateMemberTags(data: { id: number; tagIds: number[] }) {
 }
 
 export function getMemberLevelList(params: { name?: string; page: number; pageSize: number }) {
-  return request.get<any, PageResult<MemberLevelItem>>('/member/level/list', { params })
+  return request.get<any, Result<PageResult<MemberLevelItem>>>('/member/level/list', { params })
 }
 
 export function getAllMemberLevels() {
@@ -93,7 +93,7 @@ export function deleteMemberLevel(id: number) {
 }
 
 export function getMemberTagList(params: { name?: string; page: number; pageSize: number }) {
-  return request.get<any, PageResult<MemberTagItem>>('/member/tag/list', { params })
+  return request.get<any, Result<PageResult<MemberTagItem>>>('/member/tag/list', { params })
 }
 
 export function getAllMemberTags() {
@@ -113,5 +113,5 @@ export function deleteMemberTag(id: number) {
 }
 
 export function getPointsLogList(params: { memberId?: number; type?: number; page: number; pageSize: number }) {
-  return request.get<any, PageResult<PointsLogItem>>('/member/points/list', { params })
+  return request.get<any, Result<PageResult<PointsLogItem>>>('/member/points/list', { params })
 }

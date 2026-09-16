@@ -9,6 +9,7 @@ import (
 	"go-admin/config"
 	"go-admin/internal/cache"
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
 	"go-admin/internal/module/system/dto"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
@@ -81,9 +82,16 @@ func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
 		return nil, err
 	}
 
-	now := time.Now()
-	user.LoginTime = &now
-	_ = s.userRepo.Update(user)
+	// 只写 login_time，不要用 Update(user) 整行回写。
+	//
+	// 早前这里是 `user.LoginTime = &now; _ = s.userRepo.Update(user)`，两个问题：
+	// Update 的 Select 列表里没有 login_time，所以登录时间其实一次都没写进去；
+	// 而列表里有 password，会把登录时读到的旧哈希一起写回，
+	// 若期间管理员重置过该用户密码，重置会被静默回滚。
+	if err := s.userRepo.UpdateLoginTime(user.TenantID, user.ID, time.Now()); err != nil {
+		// 登录本身已成功（token 已签发），登录时间写入失败不应让登录失败
+		logger.Log.Warnf("更新登录时间失败, userID=%d: %v", user.ID, err)
+	}
 
 	return &vo.LoginResponse{
 		AccessToken:  accessToken,
@@ -96,7 +104,7 @@ func (s *authService) Login(req *dto.LoginRequest) (*vo.LoginResponse, error) {
 func (s *authService) RefreshToken(req *dto.RefreshTokenRequest) (*vo.LoginResponse, error) {
 	claims, err := auth.ParseRefreshToken(req.RefreshToken)
 	if err != nil {
-		return nil, common.NewBizError("refresh token无效")
+		return nil, common.NewUnauthorizedError("refresh token无效")
 	}
 
 	ctx := context.Background()
@@ -104,13 +112,23 @@ func (s *authService) RefreshToken(req *dto.RefreshTokenRequest) (*vo.LoginRespo
 	// 用户维度已被吊销（改密/禁用）时拒绝续期。
 	// revokeUserTokens 会同时清掉集合里的 refresh token，这里是第二道防线：
 	// 万一清理有遗漏，也不至于让一个已被停用的账号重新换出 access token。
-	if revoked, _ := cache.Exists(ctx, fmt.Sprintf("user:token_revoked:%d", claims.UserID)); revoked {
-		return nil, common.NewBizError("token已失效，请重新登录")
+	//
+	// 查询失败必须拒绝（fail-closed）：Redis 抖动时把「查不了」当成「未吊销」，
+	// 会让已停用账号继续换发新 access token。
+	revoked, revokedErr := cache.Exists(ctx, fmt.Sprintf("user:token_revoked:%d", claims.UserID))
+	if revokedErr != nil {
+		return nil, fmt.Errorf("查询token吊销状态失败: %w", revokedErr)
+	}
+	if revoked {
+		return nil, common.NewUnauthorizedError("token已失效，请重新登录")
 	}
 
-	exists, _ := cache.Exists(ctx, cache.RefreshTokenKey(req.RefreshToken))
+	exists, existsErr := cache.Exists(ctx, cache.RefreshTokenKey(req.RefreshToken))
+	if existsErr != nil {
+		return nil, fmt.Errorf("查询refresh token失败: %w", existsErr)
+	}
 	if !exists {
-		return nil, common.NewBizError("refresh token已过期")
+		return nil, common.NewUnauthorizedError("refresh token已过期")
 	}
 
 	// 轮换：旧 token 立即作废并从用户集合中移除
@@ -238,16 +256,16 @@ func (s *authService) GetUserInfo(userID uint) (*vo.UserInfoResponse, error) {
 	}, nil
 }
 
+// buildMenuTree 把扁平菜单列表组装成树。
+//
+// 实现已抽到 common.BuildTree（O(n) 的 map 索引版本）——
+// 原先每次递归都重扫整个切片，是 O(n²)。
 func buildMenuTree(menus []model.SysMenu, parentID uint) []model.SysMenu {
-	tree := make([]model.SysMenu, 0)
-	for _, menu := range menus {
-		if menu.ParentID == parentID {
-			children := buildMenuTree(menus, menu.ID)
-			menu.Children = children
-			tree = append(tree, menu)
-		}
-	}
-	return tree
+	return common.BuildTree(menus, parentID,
+		func(m model.SysMenu) uint { return m.ID },
+		func(m model.SysMenu) uint { return m.ParentID },
+		func(m *model.SysMenu, children []model.SysMenu) { m.Children = children },
+	)
 }
 
 func convertToMenuInfo(menus []model.SysMenu) []vo.MenuInfo {

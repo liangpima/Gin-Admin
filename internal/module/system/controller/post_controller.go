@@ -15,6 +15,8 @@ func NewPostController() *PostController {
 	return &PostController{postService: service.NewPostService()}
 }
 
+// tenantID 从 JWT claims 取（Auth 中间件注入），是全链路租户隔离的起点：
+// sys_post 为多租户表，漏传会让 TenantScope 退化为全表查询。
 func (ctl *PostController) Create(c *gin.Context) {
 	var req struct {
 		Code   string `json:"code" binding:"required"`
@@ -26,7 +28,8 @@ func (ctl *PostController) Create(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
-	if err := ctl.postService.Create(req.Name, req.Code, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.postService.Create(tenantID, req.Name, req.Code, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
 		common.FailWith(c, err)
 		return
 	}
@@ -45,7 +48,8 @@ func (ctl *PostController) Update(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, err.Error())
 		return
 	}
-	if err := ctl.postService.Update(req.ID, req.Name, req.Code, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
+	tenantID := common.GetTenantID(c)
+	if err := ctl.postService.Update(tenantID, req.ID, req.Name, req.Code, req.Sort, req.Status, common.GetCurrentUserID(c)); err != nil {
 		common.FailWith(c, err)
 		return
 	}
@@ -58,7 +62,7 @@ func (ctl *PostController) Delete(c *gin.Context) {
 		common.Error(c, common.CodeBadRequest, "参数错误")
 		return
 	}
-	if err := ctl.postService.Delete(id); err != nil {
+	if err := ctl.postService.Delete(common.GetTenantID(c), id); err != nil {
 		common.FailWith(c, err)
 		return
 	}
@@ -72,9 +76,9 @@ func (ctl *PostController) FindList(c *gin.Context) {
 		PageSize int    `form:"pageSize"`
 	}
 	c.ShouldBindQuery(&req)
-	if req.Page < 1 { req.Page = 1 }
-	if req.PageSize < 1 { req.PageSize = 10 }
-	list, total, err := ctl.postService.FindList(req.Name, nil, req.Page, req.PageSize)
+	req.Page = common.NormalizePage(req.Page)
+	req.PageSize = common.NormalizePageSize(req.PageSize)
+	list, total, err := ctl.postService.FindList(common.GetTenantID(c), req.Name, nil, req.Page, req.PageSize)
 	if err != nil {
 		common.FailWith(c, err)
 		return

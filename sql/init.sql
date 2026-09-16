@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS `sys_dept` (
 -- 岗位表
 CREATE TABLE IF NOT EXISTS `sys_post` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `tenant_id` bigint unsigned DEFAULT 0 COMMENT '租户ID',
   `code` varchar(64) NOT NULL COMMENT '岗位编码',
   `name` varchar(64) NOT NULL COMMENT '岗位名称',
   `sort` int DEFAULT 0 COMMENT '排序',
@@ -123,9 +124,10 @@ CREATE TABLE IF NOT EXISTS `sys_post` (
   `deleted_at` datetime DEFAULT NULL COMMENT '删除时间',
   `remark` varchar(500) DEFAULT '' COMMENT '备注',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_code` (`code`),
+  UNIQUE KEY `uk_tenant_code` (`tenant_id`, `code`),
+  KEY `idx_tenant_id` (`tenant_id`),
   KEY `idx_deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='岗位表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='岗位表（租户内数据）';
 
 -- 系统配置表
 CREATE TABLE IF NOT EXISTS `sys_config` (

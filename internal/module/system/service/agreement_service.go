@@ -6,6 +6,7 @@ import (
 	"go-admin/internal/common"
 	"go-admin/internal/module/system/model"
 	"go-admin/internal/module/system/repository"
+	"go-admin/pkg/sanitize"
 
 	"gorm.io/gorm"
 )
@@ -31,8 +32,12 @@ func NewAgreementService() AgreementService {
 
 func (s *agreementService) Create(title, content, typ string, sort int, status int8, operatorID uint) error {
 	agreement := &model.SysAgreement{
-		Title:   title,
-		Content: content,
+		Title: title,
+		// 入库前净化：content 由富文本编辑器产出，是**原始 HTML**，
+		// 必须在这里（写入口）过滤，而不是指望各渲染点自己处理。
+		// 放大因素详见 pkg/sanitize 包注释：本表是全局表（无 tenant_id，
+		// 所有租户共享），且 token 存在非 httpOnly Cookie 里，一次 XSS 即可接管账号。
+		Content: sanitize.RichText(content),
 		Type:    typ,
 		Sort:    sort,
 		Status:  status,
@@ -52,7 +57,8 @@ func (s *agreementService) Update(id uint, title, content, typ string, sort int,
 	}
 
 	agreement.Title = title
-	agreement.Content = content
+	// 同 Create：更新路径也必须净化，否则可以先存干净内容再改成恶意内容绕过
+	agreement.Content = sanitize.RichText(content)
 	agreement.Type = typ
 	agreement.Sort = sort
 	agreement.Status = status

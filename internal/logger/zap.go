@@ -12,7 +12,16 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var Log *zap.SugaredLogger
+// Log 全局日志器。
+//
+// 初值设为 no-op 而不是 nil：这样它**永远不为 nil**，所有调用点都可以直接写
+// logger.Log.Infof(...)，不必逐个加空值判断。
+//
+// 早前声明为 `var Log *zap.SugaredLogger`（nil），后果是任何在 Init() 之前
+// 触发的日志都会空指针 panic —— 而最需要日志的恰恰是启动失败与错误处理路径；
+// 单元测试不调用 Init()，因此模块内一旦用 logger.Log 就会把测试打成 panic。
+// 这正是 common.FailWith 里那句 `if logger.Log != nil` 保护存在的原因。
+var Log = zap.NewNop().Sugar()
 
 func Init() error {
 	cfg := config.Cfg.Log

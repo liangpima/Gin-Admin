@@ -12,7 +12,6 @@ import (
 	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/logger"
-	"go-admin/internal/module/system/repository"
 
 	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
@@ -197,6 +196,32 @@ func CasbinAuth() gin.HandlerFunc {
 	}
 }
 
+// RoleResolver 提供「用户在当前租户下拥有的角色 code」这一能力。
+//
+// 为什么在这里声明窄接口，而不是直接 new 业务 Repository：
+// 鉴权中间件属于横切关注点，直接构造 system 模块的 UserRepository /
+// RoleRepository 会让依赖方向倒置（基础设施层反向依赖业务层）。
+// 后果有两个：中间件的单测必须准备数据库；其它模块无法替换这层实现
+// （例如把角色来源改为外部权限中心时，得改中间件本身）。
+//
+// 改为「声明所需的最小能力 + 由调用方注入」后，middleware 只依赖一个方法签名，
+// 不再依赖 system 的模型与数据访问。
+//
+// 实现见 internal/module/system/service/rbac_resolver.go，
+// 由 cmd/server/main.go 在启动时注入。
+type RoleResolver interface {
+	RoleCodesOf(tenantID, userID uint) ([]string, error)
+}
+
+// roleResolver 已注入的实现。
+// 只在启动阶段写入一次，运行期只读，因此无需加锁。
+var roleResolver RoleResolver
+
+// SetRoleResolver 注入角色解析实现，应在开始处理请求之前调用。
+func SetRoleResolver(r RoleResolver) {
+	roleResolver = r
+}
+
 // resolveRoleCodes 解析当前用户的角色 code 列表，作为 RBAC 的匹配主体。
 // 结果短时缓存于 Redis，避免每个请求都查库。
 func resolveRoleCodes(c *gin.Context) []string {
@@ -215,22 +240,18 @@ func resolveRoleCodes(c *gin.Context) []string {
 		}
 	}
 
-	roleIDs, err := repository.NewUserRepository().FindRoleIDsByUserID(userID)
-	if err != nil || len(roleIDs) == 0 {
+	// 未注入实现属启动配置错误。返回 nil 会让上层按「无角色」拒绝（403），
+	// 比放行更安全，同时留下能指向根因的日志。
+	if roleResolver == nil {
+		logger.Log.Errorf("[casbin] RoleResolver 未注入，无法解析用户 %d 的角色", userID)
 		return nil
 	}
 
-	roles, err := repository.NewRoleRepository().FindByIDs(tenantID, roleIDs)
+	codes, err := roleResolver.RoleCodesOf(tenantID, userID)
 	if err != nil {
+		// 查库失败绝不能当作「有权限」：返回 nil，由上层按无角色拒绝
+		logger.Log.Errorf("[casbin] 解析用户 %d 的角色失败: %v", userID, err)
 		return nil
-	}
-
-	codes := make([]string, 0, len(roles))
-	for _, r := range roles {
-		// 停用的角色不参与鉴权
-		if r.Code != "" && r.Status == 1 {
-			codes = append(codes, r.Code)
-		}
 	}
 
 	if len(codes) > 0 {

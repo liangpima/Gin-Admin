@@ -51,7 +51,7 @@ export function closePayOrder(orderNo: string) {
 }
 
 export function getPayOrderList(params: { subject?: string; status?: string; channel?: string; page: number; pageSize: number }) {
-  return request.get<any, PageResult<PayOrder>>('/system/pay/order/list', { params })
+  return request.get<any, Result<PageResult<PayOrder>>>('/system/pay/order/list', { params })
 }
 
 export function queryPayOrder(orderNo: string) {

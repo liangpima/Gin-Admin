@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
@@ -28,7 +30,14 @@ func NewConfigRepository() ConfigRepository {
 }
 
 func (r *configRepository) Create(config *model.SysConfig) error {
-	return r.db.Create(config).Error
+	if err := r.db.Create(config).Error; err != nil {
+		// uk_config_key 是全局唯一索引
+		if database.IsDuplicateKey(err) {
+			return fmt.Errorf("%w: %w", common.ErrDuplicateKey, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *configRepository) FindByID(id uint) (*model.SysConfig, error) {

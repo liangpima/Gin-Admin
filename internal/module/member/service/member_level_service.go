@@ -68,9 +68,7 @@ func (s *memberLevelService) FindList(tenantID uint, req *dto.MemberLevelListReq
 	if req.Page < 1 {
 		req.Page = 1
 	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
+	req.PageSize = common.NormalizePageSize(req.PageSize)
 	return s.levelRepo.FindList(tenantID, req.Name, req.Page, req.PageSize)
 }
 

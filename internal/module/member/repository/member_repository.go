@@ -114,8 +114,22 @@ func (r *memberRepository) UpdateStatus(tenantID, id uint, status int8) error {
 	return common.TenantScope(database.DB, tenantID).Model(&model.Member{}).Where("id = ?", id).Update("status", status).Error
 }
 
+// ReplaceTags 重写会员的标签关联。
+//
+// pay_member_tag_rel 是纯关联表（只有 member_id / tag_id，**没有 tenant_id 列**），
+// 所以绝不能对它套 common.TenantScope —— 那会生成 `WHERE tenant_id = ?`，
+// MySQL 直接报 1054 Unknown column，标签功能整体失效。
+//
+// 租户隔离改为「先校验会员归属、再操作关联」：
+// 会员查不到就中止，避免用其他租户的 memberID 改写关联记录。
+// 这与 user_repository.Delete 的处理方式一致。
 func (r *memberRepository) ReplaceTags(tenantID, memberID uint, tagIDs []uint) error {
-	return common.TenantScope(database.DB, tenantID).Transaction(func(tx *gorm.DB) error {
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var member model.Member
+		if err := common.TenantScope(tx, tenantID).First(&member, memberID).Error; err != nil {
+			return err
+		}
+
 		if err := tx.Where("member_id = ?", memberID).Delete(&model.MemberTagRel{}).Error; err != nil {
 			return err
 		}
@@ -130,9 +144,14 @@ func (r *memberRepository) ReplaceTags(tenantID, memberID uint, tagIDs []uint) e
 	})
 }
 
+// FindTagIDsByMemberID 查询会员的标签 ID 列表。
+//
+// 同样不能对 pay_member_tag_rel 套 TenantScope（该表无 tenant_id 列）。
+// 隔离性由调用方保证：memberID 必然来自一次已按租户过滤的会员查询
+// （见 memberService.FindList / UpdateTags），因此这里不再重复过滤。
 func (r *memberRepository) FindTagIDsByMemberID(tenantID, memberID uint) ([]uint, error) {
 	var tagIDs []uint
-	err := common.TenantScope(database.DB, tenantID).Model(&model.MemberTagRel{}).
+	err := database.DB.Model(&model.MemberTagRel{}).
 		Where("member_id = ?", memberID).
 		Pluck("tag_id", &tagIDs).Error
 	return tagIDs, err

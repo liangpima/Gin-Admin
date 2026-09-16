@@ -1,8 +1,14 @@
 package router
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"time"
 
+	"go-admin/internal/cache"
+	"go-admin/internal/database"
+	"go-admin/internal/logger"
 	"go-admin/internal/middleware"
 	captchaController "go-admin/internal/module/captcha/controller"
 	memberController "go-admin/internal/module/member/controller"
@@ -120,8 +126,43 @@ func Setup(mode string) *gin.Engine {
 		})
 	})
 
+	// ---------- 健康检查 ----------
+	//
+	// liveness 与 readiness 必须分开，否则会互相拖累：
+	//
+	//   /health      liveness —— 只表示"进程与 HTTP 服务存活"，**刻意不探测依赖**。
+	//                依赖抖动时若让 liveness 失败，容器编排会不断重启实例，
+	//                把本可自愈的故障放大成雪崩。
+	//   /health/ready readiness —— 探测 MySQL 与 Redis，任一不可用返回 503。
+	//                编排据此决定是否把流量导入本实例：依赖没就绪时不该接流量。
+	//
+	// 两个接口都不需要认证（编排的探针不带 token），因此**只返回 ok/down**，
+	// 不返回具体错误 —— 原始错误会带出内网地址、库名等拓扑信息。
+	// 排查所需的细节在服务端日志里。
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	r.GET("/health/ready", func(c *gin.Context) {
+		checks := gin.H{"mysql": "ok", "redis": "ok"}
+		ready := true
+
+		if err := pingMySQL(c.Request.Context()); err != nil {
+			checks["mysql"] = "down"
+			ready = false
+			logger.Log.Errorf("[health] MySQL 不可用: %v", err)
+		}
+		if err := cache.RDB.Ping(c.Request.Context()).Err(); err != nil {
+			checks["redis"] = "down"
+			ready = false
+			logger.Log.Errorf("[health] Redis 不可用: %v", err)
+		}
+
+		if !ready {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "checks": checks})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready", "checks": checks})
 	})
 
 	api := r.Group("/api/v1")
@@ -282,4 +323,20 @@ func Setup(mode string) *gin.Engine {
 	uploads.Static("/", "uploads")
 
 	return r
+}
+
+// pingMySQL 探测数据库连接是否可用。
+//
+// 带 2s 超时：健康检查必须快速返回，否则探针会被慢查询拖住并误判为超时失败。
+func pingMySQL(ctx context.Context) error {
+	if database.DB == nil {
+		return errors.New("数据库未初始化")
+	}
+	sqlDB, err := database.DB.DB()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return sqlDB.PingContext(ctx)
 }

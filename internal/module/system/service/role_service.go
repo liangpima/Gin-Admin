@@ -37,7 +37,12 @@ func NewRoleService() RoleService {
 }
 
 func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID, tenantID uint) error {
-	if s.roleRepo.CountByCode(tenantID, req.Code, 0) > 0 {
+	// 角色 code 必须**全局**唯一：Casbin 策略的主体是角色 code，域是常量 "default"，
+	// 两个租户用同一 code 会导致策略合并、互相继承权限（跨租户泄漏）。
+	// 所以重名校验也必须按全局来，否则会出现「校验通过、插入撞唯一索引」→ 500
+	if count, err := s.roleRepo.CountByCode(req.Code, 0); err != nil {
+		return err
+	} else if count > 0 {
 		return common.NewBizError("角色编码已存在")
 	}
 
@@ -58,6 +63,10 @@ func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID, tenantID ui
 	role.Remark = req.Remark
 
 	if err := s.roleRepo.Create(role); err != nil {
+		// 上面 Count 校验有时间窗口，并发下靠唯一索引兜底
+		if errors.Is(err, common.ErrDuplicateKey) {
+			return common.NewBizError("角色编码已存在")
+		}
 		return err
 	}
 
@@ -72,7 +81,10 @@ func (s *roleService) Create(req *dto.CreateRoleRequest, operatorID, tenantID ui
 }
 
 func (s *roleService) Update(req *dto.UpdateRoleRequest, operatorID, tenantID uint) error {
-	if s.roleRepo.CountByCode(tenantID, req.Code, req.ID) > 0 {
+	// 同 Create：角色 code 全局唯一，改编码时也按全局校验
+	if count, err := s.roleRepo.CountByCode(req.Code, req.ID); err != nil {
+		return err
+	} else if count > 0 {
 		return common.NewBizError("角色编码已存在")
 	}
 
@@ -93,6 +105,9 @@ func (s *roleService) Update(req *dto.UpdateRoleRequest, operatorID, tenantID ui
 	role.UpdateBy = operatorID
 
 	if err := s.roleRepo.Update(tenantID, role); err != nil {
+		if errors.Is(err, common.ErrDuplicateKey) {
+			return common.NewBizError("角色编码已存在")
+		}
 		return err
 	}
 
@@ -144,9 +159,7 @@ func (s *roleService) FindList(tenantID uint, req *dto.RoleListRequest) ([]inter
 	if req.Page < 1 {
 		req.Page = 1
 	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
+	req.PageSize = common.NormalizePageSize(req.PageSize)
 
 	roles, total, err := s.roleRepo.FindList(tenantID, req.Name, req.Code, req.Status, req.Page, req.PageSize)
 	if err != nil {

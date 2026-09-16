@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"fmt"
+	"time"
+
 	"go-admin/internal/common"
 	"go-admin/internal/database"
 	"go-admin/internal/module/system/model"
@@ -18,11 +21,13 @@ type UserRepository interface {
 	Delete(tenantID, id uint) error
 	UpdateStatus(tenantID, id uint, status int8) error
 	ResetPassword(tenantID, id uint, password string) error
+	UpdateLoginTime(tenantID, id uint, t time.Time) error
 	ReplaceRoles(userID uint, roleIDs []uint) error
 	ReplacePosts(userID uint, postIDs []uint) error
 	FindRoleIDsByUserID(userID uint) ([]uint, error)
 	FindRoleIDsByUserIDs(userIDs []uint) (map[uint][]uint, error)
-	CountByUsername(tenantID uint, username string, excludeID uint) int64
+	// CountByUsername 按用户名统计，**不做租户过滤**（详见实现处注释）
+	CountByUsername(username string, excludeID uint) (int64, error)
 }
 
 type userRepository struct {
@@ -34,7 +39,15 @@ func NewUserRepository() UserRepository {
 }
 
 func (r *userRepository) Create(user *model.SysUser) error {
-	return r.db.Create(user).Error
+	if err := r.db.Create(user).Error; err != nil {
+		// username 是全局唯一索引，冲突时交给 Service 转成业务提示。
+		// 前置的 CountByUsername 存在时间窗口，并发下仍可能走到这里。
+		if database.IsDuplicateKey(err) {
+			return fmt.Errorf("%w: %w", common.ErrDuplicateKey, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *userRepository) FindByID(tenantID, id uint) (*model.SysUser, error) {
@@ -122,6 +135,21 @@ func (r *userRepository) ResetPassword(tenantID, id uint, password string) error
 	return common.TenantScope(r.db, tenantID).Model(&model.SysUser{}).Where("id = ?", id).Update("password", password).Error
 }
 
+// UpdateLoginTime 只更新"最后登录时间"这一个字段。
+//
+// 不能用 Update(user) 代劳，它有两个致命问题：
+//  1. Update 的 Select 列表里**没有 login_time** —— 那次调用压根不会更新该字段，
+//     是一次无效写入（登录时间永远是 NULL），却看起来像写成功了；
+//  2. Select 列表里**有 password** —— 会把登录时读到的旧密码哈希整行写回。
+//     若管理员在这期间重置了该用户的密码，重置结果会被静默回滚，
+//     用户仍能用旧密码登录（或被重置掉的旧密码反而生效）。
+func (r *userRepository) UpdateLoginTime(tenantID, id uint, t time.Time) error {
+	return common.TenantScope(r.db, tenantID).
+		Model(&model.SysUser{}).
+		Where("id = ?", id).
+		Update("login_time", t).Error
+}
+
 func (r *userRepository) ReplaceRoles(userID uint, roleIDs []uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_id = ?", userID).Delete(&model.SysUserRole{}).Error; err != nil {
@@ -178,12 +206,28 @@ func (r *userRepository) FindRoleIDsByUserIDs(userIDs []uint) (map[uint][]uint, 
 	return result, nil
 }
 
-func (r *userRepository) CountByUsername(tenantID uint, username string, excludeID uint) int64 {
+// CountByUsername 统计同名用户数，**刻意不做租户过滤**。
+//
+// sys_user 的 `uk_username` 是全局唯一索引，这一点是设计必需的：
+// 登录接口（POST /auth/login）只接收 username + password，**没有租户字段**，
+// FindByUsernameForAuth 也只能按用户名全局定位用户。
+// 因此「用户名全局唯一」是登录流程成立的前提。
+//
+// 既然约束是全局的，重名校验就必须是全局的 —— 早前这里按租户过滤，
+// 于是租户 B 建同名用户时校验通过、插入却撞唯一索引，
+// 对外表现为 500「服务器内部错误」，用户完全不知道是自己重名了。
+//
+// 返回 error 而不是直接丢给调用方一个 int64：Count 失败时 count 保持 0，
+// 若把错误吞掉，调用方会把「数据库故障」读成「不重名」，
+// 放行一次注定失败的 INSERT，真正的故障点因此离根因很远。
+func (r *userRepository) CountByUsername(username string, excludeID uint) (int64, error) {
 	var count int64
-	query := common.TenantScope(r.db.Model(&model.SysUser{}), tenantID).Where("username = ?", username)
+	query := r.db.Model(&model.SysUser{}).Where("username = ?", username)
 	if excludeID > 0 {
 		query = query.Where("id != ?", excludeID)
 	}
-	query.Count(&count)
-	return count
+	if err := query.Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }

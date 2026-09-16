@@ -15,8 +15,10 @@ type mockOrderRepo struct {
 	orders   map[string]*model.PayOrder
 	nextID   uint
 	createFn func(order *model.PayOrder) error
-	updateFn func(order *model.PayOrder) error
-	// claimMu 保护退款状态流转，模拟数据库条件更新的原子性。
+	// findHook 在 FindByOrderNo 内执行，用于把「并发写入恰好落在读与写之间」
+	// 这一时序窗口变成可确定性复现的场景。
+	findHook func()
+	// claimMu 保护状态流转，模拟数据库条件更新的原子性。
 	// 没有它，并发测试就失去意义（mock 的读改写不是原子的）。
 	claimMu sync.Mutex
 }
@@ -38,19 +40,37 @@ func (m *mockOrderRepo) Create(order *model.PayOrder) error {
 	return nil
 }
 
-func (m *mockOrderRepo) Update(order *model.PayOrder) error {
-	if m.updateFn != nil {
-		return m.updateFn(order)
+// CloseIfPending 模拟数据库条件更新：仅当订单仍为待支付（status=0）时才关闭。
+// 与真实实现一致地保证「判断 + 修改」的原子性（真实实现依赖 UPDATE ... WHERE 的行锁）。
+func (m *mockOrderRepo) CloseIfPending(tenantID uint, orderNo string) (bool, error) {
+	m.claimMu.Lock()
+	defer m.claimMu.Unlock()
+
+	o, ok := m.orders[orderNo]
+	if !ok || o.Status != model.StatusPending {
+		return false, nil
 	}
-	m.orders[order.OrderNo] = order
-	return nil
+	o.Status = model.StatusClosed
+	return true, nil
 }
 
+// FindByOrderNo 返回订单的**副本**，与 GORM 的真实行为一致（每次查询返回新结构体）。
+//
+// 这一点对竞态回归测试有决定意义：若返回共享指针，调用方持有的对象会被并发写入
+// 直接改掉，测试就观察不到「读到旧快照 → 写回覆盖新状态」这个真实缺陷。
+//
+// 先取快照再触发 findHook：hook 代表「读之后、写之前」落库的并发写入，
+// 它不应影响本次已读到的快照 —— 这正是真实数据库的语义。
 func (m *mockOrderRepo) FindByOrderNo(tenantID uint, orderNo string) (*model.PayOrder, error) {
-	if o, ok := m.orders[orderNo]; ok {
-		return o, nil
+	o, ok := m.orders[orderNo]
+	if !ok {
+		return nil, fmt.Errorf("record not found")
 	}
-	return nil, fmt.Errorf("record not found")
+	cp := *o
+	if m.findHook != nil {
+		m.findHook()
+	}
+	return &cp, nil
 }
 
 func (m *mockOrderRepo) FindByTradeNo(tenantID uint, tradeNo string) (*model.PayOrder, error) {
@@ -126,7 +146,13 @@ func (m *mockOrderRepo) ClaimRefund(orderNo string) (bool, error) {
 	return true, nil
 }
 
-func (m *mockOrderRepo) MarkRefunded(orderNo string, refundAmt int64, refundAt time.Time) (bool, error) {
+// UpdateRefund 模拟真实实现的语义：条件更新（仅「退款中」可落定）+
+// **累加**已退金额，终态由调用方传入。
+//
+// 累加与「退满才置为已退款」这两点必须在 mock 里如实还原，
+// 否则部分退款的回归测试会失去意义 —— 旧实现正是「覆盖金额 + 恒置已退款」，
+// 那会导致第二次部分退款抹掉第一次的金额，且剩余额度再也退不了。
+func (m *mockOrderRepo) UpdateRefund(orderNo string, refundAmt int64, refundAt time.Time, status int8) (bool, error) {
 	m.claimMu.Lock()
 	defer m.claimMu.Unlock()
 
@@ -134,8 +160,8 @@ func (m *mockOrderRepo) MarkRefunded(orderNo string, refundAmt int64, refundAt t
 	if !ok || o.Status != model.StatusRefunding {
 		return false, nil
 	}
-	o.Status = model.StatusRefunded
-	o.RefundAmt = refundAmt
+	o.Status = status
+	o.RefundAmt += refundAmt
 	o.RefundAt = &refundAt
 	return true, nil
 }
@@ -290,6 +316,51 @@ func TestCloseOrder(t *testing.T) {
 	})
 }
 
+// TestCloseOrderDoesNotOverwritePaidOrder 竞态回归保护。
+//
+// 关单流程是「先查状态判断 → 再写回」，而支付回调可能正好插在这两步之间完成
+// 状态流转。早前实现用 Save(order) 无条件全字段写入，会用**读时的旧快照**
+// 把这一行整个覆盖：status 倒退回已关闭、trade_no 与 paid_at 被清零。
+// 后果是用户已付款、订单显示已关闭、交易号丢失，账目无法核对。
+//
+// 这里用 findHook 把「并发写入落在读与写之间」变成确定性场景。
+func TestCloseOrderDoesNotOverwritePaidOrder(t *testing.T) {
+	repo := newMockRepo()
+	svc := newTestService(repo)
+
+	if _, err := svc.CreateOrder(testTenantID, "ORDER001", "商品", "", 100, "wechat", "", "", ""); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+
+	// 关单读取订单之后、条件更新之前，支付回调抢先完成流转
+	injected := false
+	repo.findHook = func() {
+		if injected {
+			return
+		}
+		injected = true
+		paidAt := time.Now()
+		if _, err := repo.MarkPaidIfPending("ORDER001", "WX_TRADE_001", &paidAt, `{"raw":"data"}`); err != nil {
+			t.Fatalf("mark paid: %v", err)
+		}
+	}
+
+	if err := svc.CloseOrder(testTenantID, "ORDER001"); err == nil {
+		t.Fatal("订单已被并发支付，关单必须失败，而不是覆盖状态")
+	}
+
+	order := repo.orders["ORDER001"]
+	if order.Status != model.StatusPaid {
+		t.Errorf("已支付订单被覆盖：expected status %d, got %d", model.StatusPaid, order.Status)
+	}
+	if order.TradeNo != "WX_TRADE_001" {
+		t.Errorf("交易号被清空：got %q", order.TradeNo)
+	}
+	if order.PaidAt == nil {
+		t.Error("支付时间被清空")
+	}
+}
+
 func TestHandleNotify(t *testing.T) {
 	t.Run("正常回调更新订单为已支付", func(t *testing.T) {
 		repo := newMockRepo()
@@ -301,6 +372,9 @@ func TestHandleNotify(t *testing.T) {
 			OrderNo: "ORDER001",
 			TradeNo: "WX_TRADE_001",
 			Status:  "success",
+			// 金额必须与订单一致：严格校验后，缺失金额（0）同样会被拒绝。
+			// 本用例此前没设 Amount，是靠旧实现的 fail-open 才通过的。
+			Amount:  100,
 			PaidAt:  &paidAt,
 			RawData: `{"raw":"data"}`,
 		})
@@ -314,6 +388,66 @@ func TestHandleNotify(t *testing.T) {
 		}
 		if order.TradeNo != "WX_TRADE_001" {
 			t.Errorf("expected TradeNo WX_TRADE_001, got %s", order.TradeNo)
+		}
+	})
+
+	t.Run("金额缺失的回调必须被拒绝", func(t *testing.T) {
+		// fail-open 回归用例。
+		// 旧实现是 `result.Amount > 0 && result.Amount != order.Amount`，
+		// 那个 `> 0` 让「金额为 0」直接跳过整个校验 —— 只要回调载荷里
+		// 没有金额字段（或解析失败），任意订单都能被标记为已支付。
+		repo := newMockRepo()
+		svc := newTestService(repo)
+		svc.CreateOrder(testTenantID, "ORDER001", "商品", "", 100, "wechat", "", "", "")
+
+		err := svc.HandleNotify("wechat", &PayNotifyResult{
+			OrderNo: "ORDER001",
+			TradeNo: "WX_TRADE_001",
+			Status:  "success",
+		})
+		if err == nil {
+			t.Fatal("金额缺失的回调必须被拒绝，而不是跳过校验")
+		}
+		if got := repo.orders["ORDER001"].Status; got != model.StatusPending {
+			t.Errorf("订单不应被置为已支付：got status %d", got)
+		}
+	})
+
+	t.Run("金额不匹配的回调必须被拒绝", func(t *testing.T) {
+		repo := newMockRepo()
+		svc := newTestService(repo)
+		svc.CreateOrder(testTenantID, "ORDER001", "商品", "", 100, "wechat", "", "", "")
+
+		err := svc.HandleNotify("wechat", &PayNotifyResult{
+			OrderNo: "ORDER001",
+			Status:  "success",
+			Amount:  1, // 只付 1 分
+		})
+		if err == nil {
+			t.Fatal("金额不匹配必须被拒绝")
+		}
+		if got := repo.orders["ORDER001"].Status; got != model.StatusPending {
+			t.Errorf("订单不应被置为已支付：got status %d", got)
+		}
+	})
+
+	t.Run("回调渠道与订单渠道不一致必须被拒绝", func(t *testing.T) {
+		// 订单渠道是 wechat，回调却声称来自 alipay —— 即使订单号相同也不放行。
+		// 属于防御纵深：某个渠道的验签万一被绕过，也不能借此跨渠道改单。
+		repo := newMockRepo()
+		svc := newTestService(repo)
+		svc.CreateOrder(testTenantID, "ORDER001", "商品", "", 100, "wechat", "", "", "")
+
+		err := svc.HandleNotify("alipay", &PayNotifyResult{
+			OrderNo: "ORDER001",
+			Status:  "success",
+			Amount:  100,
+		})
+		if err == nil {
+			t.Fatal("渠道不一致必须被拒绝")
+		}
+		if got := repo.orders["ORDER001"].Status; got != model.StatusPending {
+			t.Errorf("订单不应被置为已支付：got status %d", got)
 		}
 	})
 
@@ -409,6 +543,8 @@ func TestHandleNotify(t *testing.T) {
 // 无需构造支付渠道。校验必须在抢占状态之前完成，否则非法请求会把订单卡在「退款中」。
 func TestValidateRefund(t *testing.T) {
 	paid := &model.PayOrder{Amount: 1000, Status: model.StatusPaid}
+	// 已部分退款 300 的订单：剩余可退 700
+	partiallyRefunded := &model.PayOrder{Amount: 1000, Status: model.StatusPaid, RefundAmt: 300}
 
 	cases := []struct {
 		name      string
@@ -425,6 +561,11 @@ func TestValidateRefund(t *testing.T) {
 		{"金额为0", paid, 0, true},
 		{"金额为负", paid, -100, true},
 		{"金额超过订单", paid, 2000, true},
+		// 部分退款后按「剩余额度」而非订单总额判断，
+		// 否则已退过的部分会被重复退一次
+		{"部分退款后可退剩余额度", partiallyRefunded, 700, false},
+		{"部分退款后不可超剩余额度", partiallyRefunded, 701, true},
+		{"部分退款后不可再退全额", partiallyRefunded, 1000, true},
 	}
 
 	for _, c := range cases {
@@ -442,6 +583,81 @@ func TestValidateRefund(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPartialRefund 部分退款：累加已退金额，未退满时不把订单标为「已退款」。
+//
+// 这两点分别对应旧实现的两个缺陷（本用例就是它们的回归保护）：
+//  1. refund_amt 是覆盖写 —— 第二次部分退款会把第一次的金额抹掉；
+//  2. 状态恒置为「已退款」—— 部分退款后剩余额度再也退不了。
+func TestPartialRefund(t *testing.T) {
+	repo := newMockRepo()
+	svc := newTestService(repo)
+	var gatewayCalls int
+	svc.gatewayRefund = func(order *model.PayOrder, refundNo string, refundAmt int64) error {
+		gatewayCalls++
+		return nil
+	}
+
+	svc.CreateOrder(testTenantID, "ORDER001", "商品", "", 1000, "wechat", "", "", "")
+	repo.orders["ORDER001"].Status = model.StatusPaid
+
+	t.Run("第一次部分退款后订单保持已支付", func(t *testing.T) {
+		result, err := svc.RefundOrderWithPayInfo(testTenantID, "ORDER001", "R1", 300)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Error != nil {
+			t.Fatalf("退款失败: %v", result.Error)
+		}
+
+		order := repo.orders["ORDER001"]
+		if order.RefundAmt != 300 {
+			t.Errorf("已退金额应为 300，got %d", order.RefundAmt)
+		}
+		if order.Status != model.StatusPaid {
+			t.Errorf("部分退款后应保持已支付（以便继续退剩余），got status %d", order.Status)
+		}
+	})
+
+	t.Run("第二次部分退款金额累加而非覆盖", func(t *testing.T) {
+		if _, err := svc.RefundOrderWithPayInfo(testTenantID, "ORDER001", "R2", 200); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		order := repo.orders["ORDER001"]
+		if order.RefundAmt != 500 {
+			t.Errorf("已退金额应累加为 500（旧实现会被覆盖成 200），got %d", order.RefundAmt)
+		}
+		if order.Status != model.StatusPaid {
+			t.Errorf("未退满时应仍为已支付，got status %d", order.Status)
+		}
+	})
+
+	t.Run("退满后转为已退款且不能再退", func(t *testing.T) {
+		if _, err := svc.RefundOrderWithPayInfo(testTenantID, "ORDER001", "R3", 500); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		order := repo.orders["ORDER001"]
+		if order.RefundAmt != 1000 {
+			t.Errorf("已退金额应为 1000，got %d", order.RefundAmt)
+		}
+		if order.Status != model.StatusRefunded {
+			t.Errorf("退满后应为已退款，got status %d", order.Status)
+		}
+
+		if _, err := svc.RefundOrderWithPayInfo(testTenantID, "ORDER001", "R4", 1); err == nil {
+			t.Error("已退款订单再次退款必须被拒绝")
+		}
+	})
+
+	t.Run("网关调用次数等于实际退款笔数", func(t *testing.T) {
+		// 多一次都意味着重复退款（资金侧不可逆），因此这里必须精确相等
+		if gatewayCalls != 3 {
+			t.Errorf("网关调用次数应为 3，got %d", gatewayCalls)
+		}
+	})
 }
 
 func TestGetOrder(t *testing.T) {

@@ -69,7 +69,7 @@ func (g *WechatPayGateway) Prepay(ctx context.Context, orderNo, subject, body st
 	}
 
 	bodyBytes, _ := json.Marshal(order)
-	resp, err := g.doRequest("POST", apiURL, bodyBytes)
+	resp, err := g.doRequest(ctx, "POST", apiURL, bodyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -80,10 +80,22 @@ func (g *WechatPayGateway) Prepay(ctx context.Context, orderNo, subject, body st
 	}
 
 	if openID == "" {
-		return map[string]interface{}{"code_url": result["code_url"]}, nil
+		// 微信在 HTTP 200 下也可能不带 code_url（参数或商户配置问题），
+		// 直接取值会得到 nil，前端拿到一个空的支付链接却无从判断失败原因
+		codeURL, ok := result["code_url"].(string)
+		if !ok || codeURL == "" {
+			return nil, fmt.Errorf("微信下单响应缺少 code_url")
+		}
+		return map[string]interface{}{"code_url": codeURL}, nil
 	}
 
-	return g.generateJSAPIPayInfo(result["prepay_id"].(string))
+	// 这里**不能**直接写 result["prepay_id"].(string)：
+	// 字段缺失时该断言会 panic，被 Recovery 兜成 500，下单接口莫名失败。
+	prepayID, ok := result["prepay_id"].(string)
+	if !ok || prepayID == "" {
+		return nil, fmt.Errorf("微信下单响应缺少 prepay_id")
+	}
+	return g.generateJSAPIPayInfo(prepayID)
 }
 
 func (g *WechatPayGateway) generateJSAPIPayInfo(prepayID string) (map[string]interface{}, error) {
@@ -172,6 +184,8 @@ func (g *WechatPayGateway) ParseNotify(body []byte, headers http.Header) (*PayNo
 		TransactionID string `json:"transaction_id"`
 		TradeState    string `json:"trade_state"`
 		SuccessTime   string `json:"success_time"`
+		MchID         string `json:"mchid"`
+		AppID         string `json:"appid"`
 		Payer         struct {
 			OpenID string `json:"openid"`
 		} `json:"payer"`
@@ -183,6 +197,25 @@ func (g *WechatPayGateway) ParseNotify(body []byte, headers http.Header) (*PayNo
 	}
 	if err := json.Unmarshal(plaintext, &decrypted); err != nil {
 		return nil, fmt.Errorf("parse decrypted data failed: %w", err)
+	}
+
+	// 校验回调归属，这一步不能省。
+	//
+	// 验签（verifySignature）只能证明「报文确实来自微信支付平台」，
+	// 但微信的平台证书是**所有商户共用**的 —— 别家商户的支付通知，
+	// 用同一套平台证书同样能验签通过。
+	//
+	// 后果是：攻击者在自己的商户号下下一笔单，把 out_trade_no 填成
+	// 我们系统里某个待支付订单的订单号，就能拿到一条微信签发的、
+	// 「合法签名 + 指向我们订单」的支付成功通知，从而空手套走商品。
+	// 金额校验是后面一道防线，但订单金额恰好为 1 分时同样会被穿过。
+	//
+	// 因此必须比对 mchid / appid，确认这笔交易确实发生在本商户本应用。
+	if decrypted.MchID != g.config.MchID {
+		return nil, fmt.Errorf("wechatpay notify mchid mismatch: got %q", decrypted.MchID)
+	}
+	if decrypted.AppID != g.config.AppID {
+		return nil, fmt.Errorf("wechatpay notify appid mismatch: got %q", decrypted.AppID)
 	}
 
 	result.OrderNo = decrypted.OutTradeNo
@@ -274,7 +307,7 @@ func cachedPlatformPublicKey(serial string, allowStale ...bool) *rsa.PublicKey {
 func (g *WechatPayGateway) fetchPlatformPublicKeys() (map[string]*rsa.PublicKey, error) {
 	// Fetch platform certificates from WeChat Pay API
 	certsURL := "https://api.mch.weixin.qq.com/v3/certificates"
-	resp, err := g.doRequest("GET", certsURL, nil)
+	resp, err := g.doRequest(context.Background(), "GET", certsURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch platform certificates failed: %w", err)
 	}
@@ -366,8 +399,20 @@ func (g *WechatPayGateway) decryptResource(ciphertext, nonce, associatedData str
 	return plaintext, nil
 }
 
-func (g *WechatPayGateway) doRequest(method, url string, body []byte) ([]byte, error) {
-	req, err := http.NewRequestWithContext(context.Background(), method, url, bytes.NewReader(body))
+// doRequest 发起一次微信支付 API 请求（自动附加 APIv3 签名头）。
+//
+// ctx 由调用方传入并透传给底层 http 请求，这样上层设的超时/取消
+// 才能真正中断这次出网调用。早前这里写死 context.Background()，
+// 而调用方一律传 nil，导致网关方法签名上的 ctx 参数形同虚设。
+//
+// 入口的 nil 防御不是多余的：http.NewRequestWithContext 收到 nil ctx
+// 会直接 panic，而这是资金链路，宁可退化为无取消能力也不能崩。
+func (g *WechatPayGateway) doRequest(ctx context.Context, method, url string, body []byte) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -470,14 +515,14 @@ func (g *WechatPayGateway) Refund(ctx context.Context, orderNo, refundNo string,
 	}
 
 	bodyBytes, _ := json.Marshal(body)
-	_, err := g.doRequest("POST", "https://api.mch.weixin.qq.com/v3/refund/domestic/refunds", bodyBytes)
+	_, err := g.doRequest(ctx, "POST", "https://api.mch.weixin.qq.com/v3/refund/domestic/refunds", bodyBytes)
 	return err
 }
 
 // WechatQueryRefund queries refund status
 func (g *WechatPayGateway) WechatQueryRefund(ctx context.Context, refundNo string) (map[string]interface{}, error) {
 	url := fmt.Sprintf("https://api.mch.weixin.qq.com/v3/refund/domestic/refunds/%s", refundNo)
-	resp, err := g.doRequest("GET", url, nil)
+	resp, err := g.doRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +537,7 @@ func (g *WechatPayGateway) WechatQueryRefund(ctx context.Context, refundNo strin
 // WechatQueryOrder queries order status from WeChat
 func (g *WechatPayGateway) WechatQueryOrder(ctx context.Context, orderNo string) (map[string]interface{}, error) {
 	url := fmt.Sprintf("https://api.mch.weixin.qq.com/v3/pay/transactions/out-trade-no/%s?mchid=%s", orderNo, g.config.MchID)
-	resp, err := g.doRequest("GET", url, nil)
+	resp, err := g.doRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -36,18 +36,103 @@ type UserService interface {
 }
 
 type userService struct {
-	userRepo repository.UserRepository
+	userRepo    repository.UserRepository
+	roleService RoleService
+	postService PostService
 }
 
 func NewUserService() UserService {
 	return &userService{
-		userRepo: repository.NewUserRepository(),
+		userRepo:    repository.NewUserRepository(),
+		roleService: NewRoleService(),
+		postService: NewPostService(),
 	}
 }
 
+// dedupeNonZeroIDs 去重并剔除 0，保持原有顺序；无有效项时返回 nil。
+func dedupeNonZeroIDs(ids []uint) []uint {
+	if len(ids) == 0 {
+		return nil
+	}
+	unique := make([]uint, 0, len(ids))
+	seen := make(map[uint]bool, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return nil
+	}
+	return unique
+}
+
+// normalizeRoleIDs 校验角色 ID 全部属于当前租户，并返回去重后的合法列表。
+//
+// 为什么必须在 Service 层做：sys_user_role 是纯关联表，只有 user_id / role_id，
+// **没有 tenant_id 列**，租户隔离无法靠 TenantScope 完成。
+// 不做校验的后果是租户 A 的管理员可以把用户绑到租户 B 的角色 ID 上
+// （ID 可枚举），而 Casbin 策略是按角色 code 生成的
+// （见 middleware.SyncPoliciesFromRoleMenus），绑上即继承对方的菜单与权限码，
+// 构成跨租户权限提升。
+//
+// tenantID 为 0 时 FindByIDs 会退化为不过滤 —— 平台级账号可跨租户分配角色，
+// 与项目既定的 TenantScope 语义保持一致。
+func (s *userService) normalizeRoleIDs(tenantID uint, roleIDs []uint) ([]uint, error) {
+	unique := dedupeNonZeroIDs(roleIDs)
+	if len(unique) == 0 {
+		return nil, nil
+	}
+
+	roles, err := s.roleService.FindByIDs(tenantID, unique)
+	if err != nil {
+		return nil, err
+	}
+	if len(roles) != len(unique) {
+		// 不点名是哪个 ID 不合法：否则可被用来探测其他租户的角色 ID 是否存在
+		return nil, common.NewBizError("包含无效的角色，请刷新后重试")
+	}
+	return unique, nil
+}
+
+// normalizePostIDs 与 normalizeRoleIDs 同理：sys_user_post 也是纯关联表，
+// 且 sys_post 已改为租户内数据，必须确认岗位属于当前租户后再绑定。
+func (s *userService) normalizePostIDs(tenantID uint, postIDs []uint) ([]uint, error) {
+	unique := dedupeNonZeroIDs(postIDs)
+	if len(unique) == 0 {
+		return nil, nil
+	}
+
+	posts, err := s.postService.FindByIDs(tenantID, unique)
+	if err != nil {
+		return nil, err
+	}
+	if len(posts) != len(unique) {
+		return nil, common.NewBizError("包含无效的岗位，请刷新后重试")
+	}
+	return unique, nil
+}
+
 func (s *userService) Create(tenantID uint, req *dto.CreateUserRequest, operatorID uint) error {
-	if s.userRepo.CountByUsername(tenantID, req.Username, 0) > 0 {
+	// 用户名是**全局**唯一（登录接口不带租户字段，只能按用户名全局定位用户），
+	// 所以这里也必须按全局校验，否则会出现「校验通过、插入撞唯一索引」→ 500
+	if count, err := s.userRepo.CountByUsername(req.Username, 0); err != nil {
+		return err
+	} else if count > 0 {
 		return common.NewBizError("用户名已存在")
+	}
+
+	// 先校验角色/岗位归属再落库：若放在创建之后，校验失败会留下一个
+	// 已建好但没有角色/岗位的半成品用户
+	roleIDs, err := s.normalizeRoleIDs(tenantID, req.RoleIds)
+	if err != nil {
+		return err
+	}
+	postIDs, err := s.normalizePostIDs(tenantID, req.PostIds)
+	if err != nil {
+		return err
 	}
 
 	if err := validatePasswordStrength(req.Password); err != nil {
@@ -78,16 +163,20 @@ func (s *userService) Create(tenantID uint, req *dto.CreateUserRequest, operator
 	user.Remark = req.Remark
 
 	if err := s.userRepo.Create(user); err != nil {
+		// 上面的 Count 校验存在时间窗口，并发下仍可能撞唯一索引，靠这里兜底
+		if errors.Is(err, common.ErrDuplicateKey) {
+			return common.NewBizError("用户名已存在")
+		}
 		return err
 	}
 
-	if len(req.RoleIds) > 0 {
-		if err := s.userRepo.ReplaceRoles(user.ID, req.RoleIds); err != nil {
+	if len(roleIDs) > 0 {
+		if err := s.userRepo.ReplaceRoles(user.ID, roleIDs); err != nil {
 			return err
 		}
 	}
-	if len(req.PostIds) > 0 {
-		if err := s.userRepo.ReplacePosts(user.ID, req.PostIds); err != nil {
+	if len(postIDs) > 0 {
+		if err := s.userRepo.ReplacePosts(user.ID, postIDs); err != nil {
 			return err
 		}
 	}
@@ -120,12 +209,22 @@ func (s *userService) Update(tenantID uint, req *dto.UpdateUserRequest, operator
 	}
 
 	if req.RoleIds != nil {
-		if err := s.userRepo.ReplaceRoles(user.ID, req.RoleIds); err != nil {
+		// 传空数组表示清空角色；传了非本租户的角色 ID 会被拒绝
+		roleIDs, err := s.normalizeRoleIDs(tenantID, req.RoleIds)
+		if err != nil {
+			return err
+		}
+		if err := s.userRepo.ReplaceRoles(user.ID, roleIDs); err != nil {
 			return err
 		}
 	}
 	if req.PostIds != nil {
-		if err := s.userRepo.ReplacePosts(user.ID, req.PostIds); err != nil {
+		// 传空数组表示清空岗位；传了非本租户的岗位 ID 会被拒绝
+		postIDs, err := s.normalizePostIDs(tenantID, req.PostIds)
+		if err != nil {
+			return err
+		}
+		if err := s.userRepo.ReplacePosts(user.ID, postIDs); err != nil {
 			return err
 		}
 	}
@@ -169,9 +268,7 @@ func (s *userService) FindList(tenantID uint, req *dto.UserListRequest) ([]inter
 	if req.Page < 1 {
 		req.Page = 1
 	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
+	req.PageSize = common.NormalizePageSize(req.PageSize)
 
 	users, total, err := s.userRepo.FindList(tenantID, req.Username, req.Phone, req.Status, req.DeptID, req.Page, req.PageSize)
 	if err != nil {
@@ -250,7 +347,13 @@ func (s *userService) UpdateRoles(tenantID uint, req *dto.UpdateUserRolesRequest
 	if err != nil {
 		return common.NewNotFoundError("用户不存在")
 	}
-	if err := s.userRepo.ReplaceRoles(req.ID, req.RoleIds); err != nil {
+
+	// 校验角色归属：这是「更新角色」接口，也是跨租户提权最直接的入口
+	roleIDs, err := s.normalizeRoleIDs(tenantID, req.RoleIds)
+	if err != nil {
+		return err
+	}
+	if err := s.userRepo.ReplaceRoles(req.ID, roleIDs); err != nil {
 		return err
 	}
 	// 角色变更后立即失效该用户的角色缓存，否则最长 60s 内仍按旧角色鉴权
@@ -275,7 +378,18 @@ func (s *userService) ResetPassword(tenantID uint, req *dto.ResetPasswordRequest
 	if err != nil {
 		return err
 	}
-	return s.userRepo.ResetPassword(tenantID, req.ID, hash)
+	if err := s.userRepo.ResetPassword(tenantID, req.ID, hash); err != nil {
+		return err
+	}
+
+	// 必须连带吊销目标用户已签发的全部 Token。
+	//
+	// ChangePassword（用户自助改密）与 UpdateStatus（禁用账号）都会吊销，
+	// 唯独这条管理员重置路径之前漏了 —— 而「密码疑似泄露、紧急重置」正是它最
+	// 主要的使用场景。不吊销的话，攻击者手里的 refresh token 仍能继续换发新的
+	// access token，重置密码等于没做。
+	s.revokeUserTokens(req.ID)
+	return nil
 }
 
 func (s *userService) ChangePassword(userID uint, req *dto.ChangePasswordRequest) error {

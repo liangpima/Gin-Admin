@@ -7,6 +7,7 @@ import (
 
 	"go-admin/internal/cache"
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
 	"go-admin/pkg/auth"
 
 	"github.com/gin-gonic/gin"
@@ -30,8 +31,17 @@ func Auth() gin.HandlerFunc {
 
 		tokenString := parts[1]
 
-		// 检查 Token 是否已被吊销
-		if cache.IsTokenRevoked(context.Background(), tokenString) {
+		// 检查 Token 是否已被吊销。
+		// 查询失败时**拒绝**而不是放行：Redis 抖动期间放行等于让已登出的
+		// token 重新生效（fail-open），而这恰恰是吊销机制最该起作用的时刻。
+		revoked, err := cache.IsTokenRevoked(context.Background(), tokenString)
+		if err != nil {
+			logger.Log.Errorf("[auth] 查询 token 吊销状态失败: %v", err)
+			common.Error(c, common.CodeInternalError, "鉴权服务暂时不可用，请稍后重试")
+			c.Abort()
+			return
+		}
+		if revoked {
 			common.Unauthorized(c, "Token已失效")
 			c.Abort()
 			return
@@ -44,9 +54,17 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		// 检查用户级别 Token 吊销（密码修改/禁用）
-		userRevoked, _ := cache.Exists(context.Background(),
+		// 检查用户级别 Token 吊销（密码修改/禁用）。同样 fail-closed：
+		// 早前用 `userRevoked, _ :=` 吞掉错误，Redis 异常时会当成「未吊销」，
+		// 已停用账号仍可继续访问。
+		userRevoked, existsErr := cache.Exists(context.Background(),
 			fmt.Sprintf("user:token_revoked:%d", claims.UserID))
+		if existsErr != nil {
+			logger.Log.Errorf("[auth] 查询用户级 token 吊销标记失败: %v", existsErr)
+			common.Error(c, common.CodeInternalError, "鉴权服务暂时不可用，请稍后重试")
+			c.Abort()
+			return
+		}
 		if userRevoked {
 			common.Unauthorized(c, "Token已失效，请重新登录")
 			c.Abort()

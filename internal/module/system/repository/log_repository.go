@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -18,9 +19,11 @@ type LogRepository interface {
 	FindLoginLogList(tenantID uint, username string, status *int8, page, pageSize int) ([]model.SysLoginLog, int64, error)
 	ClearOperationLogs(tenantID uint) error
 	ClearLoginLogs(tenantID uint) error
-	// 供定时任务使用：按时间清理全部租户的历史日志
-	DeleteOperationLogsBefore(before time.Time) (int64, error)
-	DeleteLoginLogsBefore(before time.Time) (int64, error)
+	// 供定时任务使用：按时间清理全部租户的历史日志。
+	// 接收 ctx 是为了能设超时 —— GORM 默认不给查询设超时，
+	// 大表 DELETE 一旦阻塞会一直占着连接和行锁，直到数据库侧超时。
+	DeleteOperationLogsBefore(ctx context.Context, before time.Time) (int64, error)
+	DeleteLoginLogsBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 type logRepository struct {
@@ -103,13 +106,16 @@ func (r *logRepository) ClearLoginLogs(tenantID uint) error {
 
 // DeleteOperationLogsBefore 删除指定时间之前的操作日志。
 // 不区分租户：供定时清理任务按保留期统一回收，避免日志表无限增长。
-func (r *logRepository) DeleteOperationLogsBefore(before time.Time) (int64, error) {
-	result := r.db.Where("created_at < ?", before).Delete(&model.SysOperationLog{})
+//
+// 用 WithContext 而非直接 r.db：让 database/sql 能在 ctx 超时后
+// 真正中断正在执行的 DELETE，而不是只把调用方放走、查询仍在库上跑。
+func (r *logRepository) DeleteOperationLogsBefore(ctx context.Context, before time.Time) (int64, error) {
+	result := r.db.WithContext(ctx).Where("created_at < ?", before).Delete(&model.SysOperationLog{})
 	return result.RowsAffected, result.Error
 }
 
 // DeleteLoginLogsBefore 删除指定时间之前的登录日志（不区分租户，供定时清理任务使用）
-func (r *logRepository) DeleteLoginLogsBefore(before time.Time) (int64, error) {
-	result := r.db.Where("login_time < ?", before).Delete(&model.SysLoginLog{})
+func (r *logRepository) DeleteLoginLogsBefore(ctx context.Context, before time.Time) (int64, error) {
+	result := r.db.WithContext(ctx).Where("login_time < ?", before).Delete(&model.SysLoginLog{})
 	return result.RowsAffected, result.Error
 }

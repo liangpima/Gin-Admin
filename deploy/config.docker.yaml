@@ -1,0 +1,93 @@
+# ============================================================
+# 容器环境配置（docker-compose.yml 会把它挂载为 /app/config/config.yaml）
+#
+# 与 config/config.yaml（本地开发用）的区别：
+#   - mode: release            —— 关闭 Swagger 与 gin 调试输出
+#   - database.host: mysql     —— 指向 compose 内的服务名
+#   - redis.addr: redis:6379   —— 同上
+#   - cors.allow_origins: 空   —— 同源部署，不需要跨域
+#   - 密钥全部留空，由环境变量注入（DB_PASSWORD / JWT_SECRET / REDIS_PASSWORD）
+#
+# ⚠️ 密钥为什么留空而不是写默认值：
+#    mode=release 时 config.ValidateSecurity() 会拒绝以默认密钥启动
+#    （默认 JWT 密钥可被用来伪造任意用户身份）。留空 + 环境变量注入，
+#    既避免了把密钥写进配置文件，也让"忘记配置"变成启动即失败，而不是带病运行。
+# ============================================================
+
+server:
+  port: 8080
+  mode: release
+  read_timeout: 60
+  write_timeout: 60
+
+database:
+  host: mysql
+  port: 3306
+  username: gin
+  # 由环境变量 DB_PASSWORD 覆盖（config.Init 中显式读取）
+  password: ""
+  dbname: gin
+  max_idle_conns: 5
+  max_open_conns: 50
+  conn_max_lifetime: 300
+  conn_max_idle_time: 120
+
+redis:
+  addr: redis:6379
+  # 由环境变量 REDIS_PASSWORD 覆盖
+  password: ""
+  db: 0
+  pool_size: 10
+
+jwt:
+  # 由环境变量 JWT_SECRET 覆盖
+  secret: ""
+  access_expire: 7200       # 2 小时
+  refresh_expire: 604800    # 7 天
+
+log:
+  level: info
+  filename: logs/app.log
+  max_size: 200
+  max_backups: 7
+  max_age: 30
+  compress: true
+  db_retention_days: 90
+
+upload:
+  save_path: uploads/
+  max_size: 10
+  allow_exts: .jpg,.jpeg,.png,.gif,.bmp,.svg,.webp,.mp4,.mov,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar
+
+casbin:
+  # 相对工作目录（容器内 WORKDIR=/app），与镜像里 COPY 的路径对应
+  model_path: config/casbin/model.conf
+
+cors:
+  # 保持为空：前端由 nginx 同源托管并反代 /api，浏览器不会产生跨域请求。
+  #
+  # 启动日志里会出现一条 CORS 的 Error：
+  #   [cors] 生产环境未配置 cors.allow_origins，将拒绝全部跨域请求
+  # 这是**预期行为**（fail-closed 是刻意的），同源部署下无需处理。
+  #
+  # 仅当确实要从其他域名直接调用 API 时才添加来源，例如：
+  #   - "https://admin.example.com"
+  # 注意：绝不要写 "*"，配合 allow_credentials 会等价于对任意站点开放带凭证访问。
+  allow_origins: []
+  allow_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+    - "PATCH"
+  allow_headers:
+    - "Origin"
+    - "Content-Type"
+    - "Accept"
+    - "Authorization"
+    - "X-Tenant-Id"
+  expose_headers:
+    - "Content-Length"
+    - "Content-Disposition"
+  allow_credentials: true

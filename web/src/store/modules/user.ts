@@ -39,12 +39,17 @@ export const useUserStore = defineStore('user', {
       return res.data
     },
 
-    async logout() {
-      try {
-        // 必须带上 refreshToken，否则服务端无法定位并吊销它，
-        // 登出后该凭据仍可换发新的 access token
-        await logoutApi(this.refreshToken || getRefreshToken())
-      } catch {}
+    /**
+     * 清理本地会话（不发任何请求）。
+     *
+     * 抽出来是因为「主动登出」与「被 401 踢出」必须做完全相同的事。
+     * 早前 api/index.ts 里的 401 处理只做了 permissionStore.$reset()，
+     * 没有 router.removeRoute —— 于是上一个高权限会话经 addRoute 注册的路由
+     * 仍留在 router 实例里。换个低权限账号登录时，路由守卫看到 roles 非空
+     * 就直接放行，直接改 URL 就能打开那些页面（后端接口会 403，
+     * 但页面已可见并且会发出请求）。
+     */
+    clearSession() {
       this.token = ''
       this.refreshToken = ''
       this.userInfo = null
@@ -59,6 +64,15 @@ export const useUserStore = defineStore('user', {
           router.removeRoute(route.name)
         }
       })
+    },
+
+    async logout() {
+      try {
+        // 必须带上 refreshToken，否则服务端无法定位并吊销它，
+        // 登出后该凭据仍可换发新的 access token
+        await logoutApi(this.refreshToken || getRefreshToken())
+      } catch {}
+      this.clearSession()
     },
 
     hasButton(code: string): boolean {

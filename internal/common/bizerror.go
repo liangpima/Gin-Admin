@@ -39,6 +39,33 @@ func NewNotFoundError(msg string) error {
 	return &BizError{Code: CodeNotFound, Msg: msg}
 }
 
+// NewUnauthorizedError 认证类业务失败，对应 401。
+//
+// 与 NewBizError 的区别在状态码语义：refresh token 失效这类问题，前端需要按
+// 「登录态已失效」处理（清会话并跳登录页），而不是当成普通参数错误弹提示。
+// 注意**登录接口本身不要用它**：登录失败返回 401 会让前端把它当作"被踢出"，
+// 跳转登录页并清空表单，用户看不到「用户名或密码错误」的提示。
+func NewUnauthorizedError(msg string) error {
+	return &BizError{Code: CodeUnauthorized, Msg: msg}
+}
+
+// ErrDuplicateKey 唯一约束冲突的哨兵错误。
+//
+// 由 Repository 在捕获到数据库唯一键冲突（MySQL 1062）时包装返回，
+// Service 用 errors.Is 判定后转成业务错误（400）：
+//
+//	if err := s.userRepo.Create(user); err != nil {
+//	    if errors.Is(err, common.ErrDuplicateKey) {
+//	        return common.NewBizError("用户名已存在")
+//	    }
+//	    return err
+//	}
+//
+// 为什么不能只靠写入前的 Count 校验：Count 与 INSERT 之间存在时间窗口，
+// 并发下两个请求会同时通过校验，随后必有一个撞上唯一索引。
+// 约束才是唯一性的最终权威，前置校验只是为了让常见情形有友好提示。
+var ErrDuplicateKey = errors.New("duplicate key")
+
 // NotFoundOrErr 把「记录不存在」归一为 404 业务错误，其余错误原样返回。
 //
 // GORM 查询不到记录时返回的是 gorm.ErrRecordNotFound，它本身看不出是什么资源没找到，

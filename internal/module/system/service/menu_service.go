@@ -37,6 +37,10 @@ func NewMenuService() MenuService {
 }
 
 func (s *menuService) Create(req *dto.CreateMenuRequest, operatorID uint) error {
+	if err := s.ensureParentExists(req.ParentID); err != nil {
+		return err
+	}
+
 	menu := &model.SysMenu{
 		BaseModel: common.BaseModel{
 			CreateBy: operatorID,
@@ -65,12 +69,40 @@ func (s *menuService) Create(req *dto.CreateMenuRequest, operatorID uint) error 
 	return nil
 }
 
+// ensureParentExists 校验上级菜单存在（parentID 为 0 表示挂到根）。
+//
+// 不校验的后果很隐蔽：parent_id 指向一个不存在的 ID 时 INSERT 会成功，
+// 但树是从 parent_id=0 出发构建的，这个节点永远不可达 ——
+// 表现为「提示创建成功，列表里却找不到」，数据却真实留在库里。
+func (s *menuService) ensureParentExists(parentID uint) error {
+	if parentID == 0 {
+		return nil
+	}
+	if _, err := s.menuRepo.FindByID(parentID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return common.NewBizError("上级菜单不存在")
+		}
+		return err
+	}
+	return nil
+}
+
+// ErrMenuHasChildren 删除菜单时存在下级菜单。
+//
+// 与 dept 模块的 ErrDeptHasChildren 对称：用可识别的业务错误暴露出来，
+// 让 Controller 归为 400（前置条件不满足），而不是笼统的 500。
+var ErrMenuHasChildren = common.NewBizError("存在下级菜单，请先删除下级菜单")
+
 func (s *menuService) Update(req *dto.UpdateMenuRequest, operatorID uint) error {
 	menu, err := s.menuRepo.FindByID(req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return common.NewNotFoundError("菜单不存在")
 		}
+		return err
+	}
+
+	if err := s.ensureParentExists(req.ParentID); err != nil {
 		return err
 	}
 
@@ -105,7 +137,21 @@ func (s *menuService) Update(req *dto.UpdateMenuRequest, operatorID uint) error 
 	return nil
 }
 
+// Delete 删除菜单。
+//
+// 存在子菜单时拒绝删除：直接删父节点会让子菜单的 parent_id 悬空，
+// 而树是从 parent_id=0 递归构建的，这棵子树会「从界面上消失」，
+// 数据却还在库里，既看不见也删不掉，成为孤儿数据。
+// 部门模块此前已有同样的保护，菜单这里漏了。
 func (s *menuService) Delete(id uint) error {
+	children, err := s.menuRepo.CountByParentID(id)
+	if err != nil {
+		return err
+	}
+	if children > 0 {
+		return ErrMenuHasChildren
+	}
+
 	if err := s.menuRepo.Delete(id); err != nil {
 		return err
 	}

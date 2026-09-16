@@ -36,6 +36,10 @@ func NewDeptService() DeptService {
 }
 
 func (s *deptService) Create(req *dto.CreateDeptRequest, operatorID uint) error {
+	if err := s.ensureParentExists(req.ParentID); err != nil {
+		return err
+	}
+
 	dept := &model.SysDept{
 		BaseModel: common.BaseModel{
 			CreateBy: operatorID,
@@ -53,12 +57,35 @@ func (s *deptService) Create(req *dto.CreateDeptRequest, operatorID uint) error 
 	return s.deptRepo.Create(dept)
 }
 
+// ensureParentExists 校验上级节点存在（parentID 为 0 表示挂到根）。
+//
+// 不校验的后果非常隐蔽：parent_id 指向一个不存在的 ID 时，
+// INSERT 本身会成功，但 FindTree 是从 parent_id=0 出发构建的，
+// 这个节点永远不可达 —— 表现为「提示创建成功，列表里却找不到」，
+// 数据却真实留在库里，既看不见也删不掉。
+func (s *deptService) ensureParentExists(parentID uint) error {
+	if parentID == 0 {
+		return nil
+	}
+	if _, err := s.deptRepo.FindByID(parentID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return common.NewBizError("上级部门不存在")
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *deptService) Update(req *dto.UpdateDeptRequest, operatorID uint) error {
 	dept, err := s.deptRepo.FindByID(req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return common.NewNotFoundError("部门不存在")
 		}
+		return err
+	}
+
+	if err := s.ensureParentExists(req.ParentID); err != nil {
 		return err
 	}
 
@@ -113,14 +140,14 @@ func (s *deptService) FindTree() ([]model.SysDept, error) {
 	return buildDeptTree(depts, 0), nil
 }
 
+// buildDeptTree 把扁平部门列表组装成树。
+//
+// 实现已抽到 common.BuildTree（O(n) 的 map 索引版本），
+// 与菜单共用同一份逻辑，避免两处各修一遍。
 func buildDeptTree(depts []model.SysDept, parentID uint) []model.SysDept {
-	tree := make([]model.SysDept, 0)
-	for _, dept := range depts {
-		if dept.ParentID == parentID {
-			children := buildDeptTree(depts, dept.ID)
-			dept.Children = children
-			tree = append(tree, dept)
-		}
-	}
-	return tree
+	return common.BuildTree(depts, parentID,
+		func(d model.SysDept) uint { return d.ID },
+		func(d model.SysDept) uint { return d.ParentID },
+		func(d *model.SysDept, children []model.SysDept) { d.Children = children },
+	)
 }

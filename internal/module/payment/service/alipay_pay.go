@@ -139,7 +139,7 @@ func (g *AlipayGateway) QueryTrade(ctx context.Context, orderNo string) (map[str
 	}
 	params["sign"] = sign
 
-	respBody, err := g.doRequest("POST", "https://openapi.alipay.com/gateway.do", params)
+	respBody, err := g.doRequest(ctx, "POST", "https://openapi.alipay.com/gateway.do", params)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +150,42 @@ func (g *AlipayGateway) QueryTrade(ctx context.Context, orderNo string) (map[str
 	}
 
 	return resp, nil
+}
+
+// alipaySuccessCode 支付宝网关业务成功的 code 值
+const alipaySuccessCode = "10000"
+
+// checkAlipayResponse 校验网关响应中的业务码。
+//
+// 支付宝网关在**业务失败时同样返回 HTTP 200**，真正的结果在响应体的 code 字段
+// （成功为 "10000"）。只看 HTTP 状态会把「余额不足」「订单不可退」「退款单号重复」
+// 这类失败误判为成功 —— 对退款而言后果是：系统把订单落定为「已退款」，
+// 钱却根本没退给用户，且状态机已锁死无法重试。
+//
+// method 为接口方法名（如 alipay.trade.refund），响应字段名为其下划线形式 + _response。
+func checkAlipayResponse(method string, resp map[string]interface{}) error {
+	respKey := strings.ReplaceAll(method, ".", "_") + "_response"
+
+	raw, ok := resp[respKey]
+	if !ok {
+		return fmt.Errorf("支付宝响应缺少字段 %s", respKey)
+	}
+	body, ok := raw.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("支付宝响应字段 %s 结构异常", respKey)
+	}
+
+	code, _ := body["code"].(string)
+	if code == alipaySuccessCode {
+		return nil
+	}
+
+	// 失败时带上 code / sub_code / msg / sub_msg，便于定位是参数问题还是渠道问题
+	subCode, _ := body["sub_code"].(string)
+	msg, _ := body["msg"].(string)
+	subMsg, _ := body["sub_msg"].(string)
+	return fmt.Errorf("支付宝业务失败: code=%s sub_code=%s msg=%s sub_msg=%s",
+		code, subCode, msg, subMsg)
 }
 
 func (g *AlipayGateway) Refund(ctx context.Context, orderNo, refundNo string, amount int64) (map[string]interface{}, error) {
@@ -179,13 +215,19 @@ func (g *AlipayGateway) Refund(ctx context.Context, orderNo, refundNo string, am
 	}
 	params["sign"] = sign
 
-	respBody, err := g.doRequest("POST", "https://openapi.alipay.com/gateway.do", params)
+	respBody, err := g.doRequest(ctx, "POST", "https://openapi.alipay.com/gateway.do", params)
 	if err != nil {
 		return nil, err
 	}
 
 	var resp map[string]interface{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, err
+	}
+
+	// 关键：HTTP 200 不等于退款成功，必须校验业务码。
+	// 不校验的后果是退款失败被记成成功，订单落定为「已退款」而钱没退出去。
+	if err := checkAlipayResponse("alipay.trade.refund", resp); err != nil {
 		return nil, err
 	}
 
@@ -214,6 +256,17 @@ func (g *AlipayGateway) ParseNotify(body []byte) (*PayNotifyResult, error) {
 
 	if err := g.verify(params, sign); err != nil {
 		return nil, fmt.Errorf("alipay verify failed: %w", err)
+	}
+
+	// 校验回调归属。
+	//
+	// 验签只能证明「报文来自支付宝且签名串未被篡改」，不能证明
+	// 「这笔交易属于本应用」—— 同一支付宝账号体系下的其他应用
+	// （服务商模式下代管的子应用尤其常见）同样能生成通过验签的通知。
+	// 若不比对 app_id，别家应用的支付通知就能把我们的订单标记为已支付。
+	// 支付宝接口规范也明确要求商户校验 app_id，这里与微信侧保持一致。
+	if appID := form.Get("app_id"); appID != g.config.AppID {
+		return nil, fmt.Errorf("alipay notify app_id mismatch: got %q", appID)
 	}
 
 	result.TradeNo = form.Get("trade_no")
@@ -354,13 +407,22 @@ func (g *AlipayGateway) getPublicKey() (*rsa.PublicKey, error) {
 	return parsePublicKey(key)
 }
 
-func (g *AlipayGateway) doRequest(method, requestURL string, params map[string]string) ([]byte, error) {
+// doRequest 发起一次支付宝网关请求。
+//
+// ctx 由调用方透传，使上层超时/取消能真正中断这次出网调用。
+// 入口的 nil 防御不是多余的：http.NewRequestWithContext 收到 nil ctx
+// 会直接 panic，而这是资金链路，宁可退化为无取消能力也不能崩。
+func (g *AlipayGateway) doRequest(ctx context.Context, method, requestURL string, params map[string]string) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	form := url.Values{}
 	for k, v := range params {
 		form.Set(k, v)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), method, requestURL, bytes.NewBufferString(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, bytes.NewBufferString(form.Encode()))
 	if err != nil {
 		return nil, err
 	}

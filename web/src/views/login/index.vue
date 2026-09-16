@@ -107,9 +107,12 @@ const siteInfo = reactive({
   logo: '',
 })
 
+// 不要预填任何默认账号密码：生产构建会随浏览器分发，
+// 预填 admin/admin123 等于把默认凭据公开给所有人，
+// 也会让后端「生产环境拒绝默认密钥启动」的防护形同虚设。
 const loginForm = reactive({
-  username: 'admin',
-  password: 'admin123',
+  username: '',
+  password: '',
 })
 
 const loginRules = {

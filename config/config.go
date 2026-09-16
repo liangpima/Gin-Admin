@@ -32,6 +32,10 @@ type ServerConfig struct {
 	Mode         string `mapstructure:"mode"`
 	ReadTimeout  int    `mapstructure:"read_timeout"`
 	WriteTimeout int    `mapstructure:"write_timeout"`
+	// ReadHeaderTimeout 限制读取请求头的时间，用于防 Slowloris：
+	// 攻击者保持连接、每次只发几个字节的头，ReadTimeout 会被不断刷新，
+	// 连接可被无限占用。缺省（<=0）时由 Validate 填默认值。
+	ReadHeaderTimeout int `mapstructure:"read_header_timeout"`
 }
 
 type DatabaseConfig struct {
@@ -111,6 +115,100 @@ func Init(path string) error {
 		Cfg.Redis.Password = v
 	}
 
+	return Validate()
+}
+
+// 请求头读取超时的默认值与上限（秒）。
+//
+// 默认 10s 对正常客户端绰绰有余（局域网内请求头是毫秒级），
+// 上限 60s 是为了防止把它配成远大于 ReadTimeout 而失去防护意义。
+const (
+	defaultReadHeaderTimeout = 10
+	maxReadHeaderTimeout     = 60
+)
+
+// Validate 校验关键配置项的取值范围，并补齐可缺省的字段。
+//
+// 为什么需要它：Init 只负责「解析」，解析成功不代表配置可用。
+// 端口写成 70000、超时写成 0、JWT 有效期写成负数这类错误，
+// 若不在启动时拦下，会一路带到运行期才以难以诊断的方式暴露 ——
+// 端口越界表现成 bind 失败，超时为 0 表现成「请求永不超时」，
+// 而 Slowloris 这类攻击恰好只需要一个没有超时上限的连接。
+//
+// 启动即失败，好过带病运行。
+func Validate() error {
+	var problems []string
+
+	if Cfg.Server.Port < 1 || Cfg.Server.Port > 65535 {
+		problems = append(problems, fmt.Sprintf(
+			"server.port 非法（%d），应在 1-65535 之间", Cfg.Server.Port))
+	}
+	if Cfg.Server.ReadTimeout <= 0 {
+		problems = append(problems,
+			"server.read_timeout 必须为正数（为 0 时慢速连接可无限占用）")
+	}
+	if Cfg.Server.WriteTimeout <= 0 {
+		problems = append(problems, "server.write_timeout 必须为正数")
+	}
+
+	// ReadHeaderTimeout 是后加字段，旧配置里没有，因此缺省时自动补默认值，
+	// 而不是报错 —— 否则升级后所有既有配置文件都会导致启动失败。
+	if Cfg.Server.ReadHeaderTimeout <= 0 {
+		Cfg.Server.ReadHeaderTimeout = defaultReadHeaderTimeout
+	}
+	if Cfg.Server.ReadHeaderTimeout > maxReadHeaderTimeout {
+		problems = append(problems, fmt.Sprintf(
+			"server.read_header_timeout 过大（%d 秒），不应超过 %d 秒",
+			Cfg.Server.ReadHeaderTimeout, maxReadHeaderTimeout))
+	}
+
+	if Cfg.Database.Host == "" {
+		problems = append(problems, "database.host 不能为空")
+	}
+	if Cfg.Database.Port < 1 || Cfg.Database.Port > 65535 {
+		problems = append(problems, fmt.Sprintf(
+			"database.port 非法（%d），应在 1-65535 之间", Cfg.Database.Port))
+	}
+	if Cfg.Database.DBName == "" {
+		problems = append(problems, "database.dbname 不能为空")
+	}
+	if Cfg.Database.MaxOpenConns < 1 {
+		problems = append(problems, "database.max_open_conns 必须大于 0")
+	}
+
+	if Cfg.Redis.Addr == "" {
+		problems = append(problems, "redis.addr 不能为空（本项目 Redis 为必需依赖）")
+	}
+
+	// access token 比 refresh token 还长（或相等）会让续期机制失去意义：
+	// 客户端的 access 还没过期，refresh 已先失效，用户仍会被强制重登。
+	if Cfg.JWT.AccessExpire <= 0 {
+		problems = append(problems, "jwt.access_expire 必须为正数")
+	}
+	if Cfg.JWT.RefreshExpire <= 0 {
+		problems = append(problems, "jwt.refresh_expire 必须为正数")
+	}
+	if Cfg.JWT.AccessExpire > 0 && Cfg.JWT.RefreshExpire > 0 &&
+		Cfg.JWT.AccessExpire >= Cfg.JWT.RefreshExpire {
+		problems = append(problems, fmt.Sprintf(
+			"jwt.access_expire(%d) 必须小于 jwt.refresh_expire(%d)，否则 refresh token 无意义",
+			Cfg.JWT.AccessExpire, Cfg.JWT.RefreshExpire))
+	}
+
+	if Cfg.Upload.SavePath == "" {
+		problems = append(problems, "upload.save_path 不能为空")
+	}
+	if Cfg.Upload.MaxSize <= 0 {
+		problems = append(problems, "upload.max_size 必须为正数（单位 MB）")
+	}
+
+	if Cfg.Casbin.ModelPath == "" {
+		problems = append(problems, "casbin.model_path 不能为空")
+	}
+
+	if len(problems) > 0 {
+		return fmt.Errorf("配置校验未通过：\n  - %s", strings.Join(problems, "\n  - "))
+	}
 	return nil
 }
 

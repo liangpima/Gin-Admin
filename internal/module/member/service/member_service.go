@@ -9,6 +9,7 @@ import (
 
 	"go-admin/internal/cache"
 	"go-admin/internal/common"
+	"go-admin/internal/logger"
 	"go-admin/internal/module/member/dto"
 	"go-admin/internal/module/member/model"
 	"go-admin/internal/module/member/repository"
@@ -88,7 +89,11 @@ func (s *memberService) Create(req *dto.CreateMemberRequest, operatorID, tenantI
 	}
 
 	if len(req.TagIds) > 0 {
-		_ = s.memberRepo.ReplaceTags(tenantID, member.ID, req.TagIds)
+		// 不再吞掉错误：标签写入失败必须让调用方知道，否则会员建好了却没标签，
+		// 调用方以为成功，数据静默不一致。
+		if err := s.memberRepo.ReplaceTags(tenantID, member.ID, req.TagIds); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -126,7 +131,9 @@ func (s *memberService) Update(req *dto.UpdateMemberRequest, operatorID, tenantI
 	}
 
 	if req.TagIds != nil {
-		_ = s.memberRepo.ReplaceTags(tenantID, member.ID, req.TagIds)
+		if err := s.memberRepo.ReplaceTags(tenantID, member.ID, req.TagIds); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -148,9 +155,7 @@ func (s *memberService) FindList(tenantID uint, req *dto.MemberListRequest) ([]i
 	if req.Page < 1 {
 		req.Page = 1
 	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
+	req.PageSize = common.NormalizePageSize(req.PageSize)
 
 	status := int8(-1)
 	if req.Status != nil {
@@ -169,8 +174,16 @@ func (s *memberService) FindList(tenantID uint, req *dto.MemberListRequest) ([]i
 
 	result := make([]interface{}, len(members))
 	for i, m := range members {
-		tagIDs, _ := s.memberRepo.FindTagIDsByMemberID(tenantID, m.ID)
-		tags, _ := s.tagRepo.FindByIDs(tenantID, tagIDs)
+		// 不再用 `_` 丢弃错误：标签查询此前因 SQL 引用不存在的列而恒定失败，
+		// 错误被吞掉，表现为「会员列表标签恒为空」且长期无人察觉。
+		tagIDs, err := s.memberRepo.FindTagIDsByMemberID(tenantID, m.ID)
+		if err != nil {
+			logger.Log.Warnf("查询会员标签关联失败, memberID=%d: %v", m.ID, err)
+		}
+		tags, err := s.tagRepo.FindByIDs(tenantID, tagIDs)
+		if err != nil {
+			logger.Log.Warnf("查询标签详情失败, memberID=%d: %v", m.ID, err)
+		}
 		result[i] = memberWithTag{Member: m, Tags: tags}
 	}
 	return result, total, nil

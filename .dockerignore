@@ -1,0 +1,53 @@
+# Docker 构建上下文排除项。
+#
+# 重点是 web/node_modules（217 个包、数万文件）：它不影响镜像内容，
+# 但每次构建都会被扫描并传给 daemon，实测能把构建拖慢数分钟。
+# 前端依赖由 web/Dockerfile 在容器内 npm ci 安装。
+
+# ---- 前端依赖与产物 ----
+web/node_modules
+web/dist
+
+# ---- Go 构建产物 ----
+dist/
+build/
+*.exe
+*.test
+*.out
+
+# ---- 运行时数据（绝不进镜像）----
+logs/
+uploads/
+runtime/
+tmp/
+temp/
+*.log
+*.pid
+*.bak
+
+# ---- 敏感文件：支付证书、私钥等凭据 ----
+*.pem
+*.key
+*.p12
+*.crt
+.cer
+.env
+.env.*
+
+# ---- 版本控制与编辑器 ----
+.git
+.gitignore
+.idea
+.vscode
+*.swp
+*.swo
+
+# ---- AI 工具工作目录 ----
+.workbuddy
+.workbuddy-ai
+.mimocode
+
+# ---- 文档 ----
+# 注意：**不能排除 docs/** —— cmd/server/main.go 里 `_ "go-admin/docs"`
+# 依赖这个 Go 包（swaggo 生成的 swagger 定义），排除后 go build 直接失败。
+*.md

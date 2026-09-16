@@ -1,6 +1,7 @@
 package service
 
 import (
+	"go-admin/internal/common"
 	"go-admin/internal/module/member/dto"
 	"go-admin/internal/module/member/model"
 	"go-admin/internal/module/member/repository"
@@ -24,8 +25,6 @@ func (s *pointsLogService) FindList(tenantID uint, req *dto.PointsLogListRequest
 	if req.Page < 1 {
 		req.Page = 1
 	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
+	req.PageSize = common.NormalizePageSize(req.PageSize)
 	return s.pointsLogRepo.FindList(tenantID, req.MemberID, req.Type, req.Page, req.PageSize)
 }

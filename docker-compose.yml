@@ -1,0 +1,117 @@
+# ============================================================
+# Gin-Admin 一键部署编排
+#
+# 快速开始：
+#   cp .env.example .env    # 然后填写所有必填项（含密钥，无默认值）
+#   docker compose up -d --build
+#   访问 http://localhost:8080
+#
+# 服务拓扑：
+#   web (nginx)  ── 对外唯一入口，托管前端静态资源
+#     ├── /api/     反代 → app:8080
+#     └── /uploads/ 反代 → app:8080（必须走后端，见 deploy/nginx/default.conf 说明）
+#   app (Go)     ── 仅内网可达，不发布端口
+#   mysql / redis ── 仅内网可达，数据落 named volume
+#
+# 详细说明、升级与排障见 deploy/README.md
+# ============================================================
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # 时间戳按东八区存储，避免与日志/后台显示对不上
+      - --default-time-zone=+08:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-gin}
+      MYSQL_USER: ${MYSQL_USER:-gin}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 仅在数据目录为空时执行（首次初始化）：建表 + 种子数据（全部 INSERT IGNORE，可重复执行）
+      # 注意：sql/migrations/ 下的迁移脚本**不会**自动执行。
+      # 升级时用执行器：docker compose exec app /app/migrate（见 deploy/README.md）
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    # 不发布端口：只在 compose 网络内可达。需要本地连库调试时临时加：
+    # ports: ["3306:3306"]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly：Redis 承载 refresh token、token 黑名单、验证码、
+    # 登录失败计数。丢失会导致全部用户被登出、限频被绕过，因此开启持久化。
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gin-admin:latest
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # 这三个变量由 config.Init / GetJWTSecret 显式读取并覆盖配置文件中的同名项
+      DB_PASSWORD: ${MYSQL_PASSWORD:?}
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET（生产环境用默认值会拒绝启动）}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./deploy/config.docker.yaml:/app/config/config.yaml:ro
+      # 以下目录必须持久化，否则重建容器会丢数据：
+      - app-uploads:/app/uploads     # 用户上传的文件
+      - app-runtime:/app/runtime     # 支付证书等敏感凭据
+      - app-logs:/app/logs           # 应用日志
+    healthcheck:
+      # 覆盖镜像里的 liveness：这里做 readiness（探测 MySQL/Redis），
+      # 让 web 等到依赖真正可用再启动。
+      # 镜像自带的 /health（纯 liveness）保持不变，避免依赖抖动引发容器重启风暴。
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    # 不发布端口：唯一入口是 web。需要直连 API/Swagger 调试时临时加：
+    # ports: ["8081:8080"]
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    image: gin-admin-web:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  mysql-data:
+  redis-data:
+  app-uploads:
+  app-runtime:
+  app-logs:

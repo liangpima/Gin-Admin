@@ -113,7 +113,12 @@ func (ctl *AuthController) RefreshToken(c *gin.Context) {
 
 	resp, err := ctl.authService.RefreshToken(&req)
 	if err != nil {
-		common.Error(c, common.CodeUnauthorized, err.Error())
+		// 用 FailWith 收口，而不是把 err.Error() 直接透出：
+		// 业务错误（token 无效/过期）按其 401 返回，前端据此清会话跳登录页；
+		// 系统错误（Redis 故障等）回 500 + 通用文案。
+		// 早前 `common.Error(c, CodeUnauthorized, err.Error())` 会把
+		// "存储refresh token失败: dial tcp ..." 这类实现细节回给客户端。
+		common.FailWith(c, err)
 		return
 	}
 

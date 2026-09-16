@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"go-admin/internal/common"
-	"go-admin/internal/module/system/model"
-	"go-admin/internal/module/system/repository"
+	"go-admin/internal/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -145,16 +143,42 @@ func sanitizeRequestBody(body []byte) string {
 	return string(runes)
 }
 
-var (
-	_operationLogRepo     repository.LogRepository
-	_operationLogRepoOnce sync.Once
-)
+// OperationLogEntry 审计日志条目 —— middleware 侧的最小数据契约。
+//
+// 为什么不直接用 system 模块的 model.SysOperationLog：
+// 中间件属于横切关注点，直接依赖业务模型意味着「业务表加一个字段」
+// 会牵动中间件的编译与测试，依赖方向也被倒置。
+// 这里只描述审计所需的信息，落库细节（表名、字段映射）交给业务侧适配器。
+type OperationLogEntry struct {
+	TenantID      uint
+	Title         string
+	Action        string
+	RequestMethod string
+	RequestURL    string
+	RequestParam  string
+	Status        int8
+	IP            string
+	UserAgent     string
+	OperatorID    uint
+	OperatorName  string
+	CostTime      int64
+	ErrorMsg      string
+}
 
-func getOperationLogRepo() repository.LogRepository {
-	_operationLogRepoOnce.Do(func() {
-		_operationLogRepo = repository.NewLogRepository()
-	})
-	return _operationLogRepo
+// OperationLogWriter 把审计条目落库的能力。
+//
+// 实现见 internal/module/system/service/operation_log_writer.go，
+// 由 cmd/server/main.go 在启动时注入。
+type OperationLogWriter interface {
+	WriteOperationLog(entry *OperationLogEntry) error
+}
+
+// operationLogWriter 已注入的实现。启动阶段写入一次，运行期只读。
+var operationLogWriter OperationLogWriter
+
+// SetOperationLogWriter 注入审计日志写入实现，应在开始处理请求之前调用。
+func SetOperationLogWriter(w OperationLogWriter) {
+	operationLogWriter = w
 }
 
 var skipPaths = []string{
@@ -172,6 +196,23 @@ var sensitiveGetPaths = []string{
 	"/api/v1/system/file/",
 	"/api/v1/member/",
 	"/api/v1/system/pay/",
+}
+
+// isJSONContentType 判断请求体是否为 JSON。
+//
+// 只有 JSON 才需要读取并脱敏落库 —— sanitizeRequestBody 对非 JSON 本来就返回
+// "[non-json body omitted]"。若不加这道判断，每个上传请求都会把完整 body
+// （按 upload.max_size 最大 10MB）读进内存再丢弃，纯属浪费。
+func isJSONContentType(ct string) bool {
+	if ct == "" {
+		return false
+	}
+	mediaType := ct
+	if i := strings.IndexByte(ct, ';'); i >= 0 {
+		mediaType = ct[:i]
+	}
+	mediaType = strings.TrimSpace(strings.ToLower(mediaType))
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
 func OperationLog() gin.HandlerFunc {
@@ -201,7 +242,7 @@ func OperationLog() gin.HandlerFunc {
 		}
 
 		var bodyBytes []byte
-		if c.Request.Body != nil {
+		if c.Request.Body != nil && isJSONContentType(c.GetHeader("Content-Type")) {
 			bodyBytes, _ = io.ReadAll(c.Request.Body)
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
@@ -220,7 +261,7 @@ func OperationLog() gin.HandlerFunc {
 
 		title := resolveTitle(path)
 
-		log := &model.SysOperationLog{
+		entry := &OperationLogEntry{
 			TenantID:      common.GetTenantID(c),
 			Title:         title,
 			Action:        method,
@@ -236,11 +277,20 @@ func OperationLog() gin.HandlerFunc {
 		}
 
 		if statusCode >= 400 {
-			log.Status = 0
-			log.ErrorMsg = "HTTP " + strings.TrimSpace(c.Errors.ByType(gin.ErrorTypePrivate).String())
+			entry.Status = 0
+			entry.ErrorMsg = "HTTP " + strings.TrimSpace(c.Errors.ByType(gin.ErrorTypePrivate).String())
 		}
 
-		_ = getOperationLogRepo().CreateOperationLog(log)
+		// 审计写入是旁路能力：实现未注入或写库失败都不应把正常请求变成 500。
+		// 但必须留下明确日志 —— 否则「审计静默失效」会长期无人察觉，
+		// 等到需要追溯操作记录时才发现一片空白。
+		if operationLogWriter == nil {
+			logger.Log.Errorf("[operation-log] OperationLogWriter 未注入，审计日志未记录: %s %s", method, path)
+			return
+		}
+		if err := operationLogWriter.WriteOperationLog(entry); err != nil {
+			logger.Log.Errorf("[operation-log] 审计日志写入失败: %s %s: %v", method, path, err)
+		}
 	}
 }
 

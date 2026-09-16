@@ -80,7 +80,14 @@ func (s *configService) Create(name, key, value string, typ int8, operatorID uin
 		Type:      typ,
 	}
 
-	return s.configRepo.Create(config)
+	if err := s.configRepo.Create(config); err != nil {
+		// config_key 全局唯一（uk_config_key），冲突时给出可读提示而非 500
+		if errors.Is(err, common.ErrDuplicateKey) {
+			return common.NewBizError("配置项已存在，请更换配置键名")
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *configService) Update(id uint, name, key, value string, typ int8, operatorID uint) error {
@@ -94,9 +101,19 @@ func (s *configService) Update(id uint, name, key, value string, typ int8, opera
 
 	config.Name = name
 	config.ConfigKey = key
-	config.Value = value
-	config.Type = typ
 	config.UpdateBy = operatorID
+	config.Type = typ
+
+	// 敏感项原样回传打码占位符 = 用户没有修改它，保留库里的真实值。
+	//
+	// 必须判断：FindList / FindByPrefix 返回的是打码后的 "******"，
+	// 管理员在编辑框里只改了名称就保存时，前端会把 "******" 一起提交回来。
+	// 若直接落库，真实的支付/OSS/短信密钥会被覆盖成字面量 "******"，
+	// 之后的表现是「签名失败」「上传失败」，完全指不到是配置被写坏了。
+	// BatchSave 早已有此保护，Update 这条路径之前漏了，这里补齐。
+	if !(value == maskedValue && (isSensitiveConfigKey(key) || isSensitiveConfigKey(config.ConfigKey))) {
+		config.Value = value
+	}
 
 	return s.configRepo.Update(config)
 }

@@ -67,11 +67,32 @@ func GetUintParam(c *gin.Context, key string) (uint, error) {
 func GetPageInfo(c *gin.Context) (int, int) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	if page < 1 {
-		page = 1
+	return NormalizePage(page), NormalizePageSize(pageSize)
+}
+
+// 分页的默认值与上限。
+//
+// 上限是硬约束：pageSize 不设上限时，`?pageSize=100000000` 会让服务端
+// 把整表查进内存再序列化，单个匿名请求即可打满内存，属于低成本 DoS。
+// 各 Controller 自行散落地写「<1 才归位」的写法漏掉了「>100 要归位」，
+// 因此这里统一收口。
+const (
+	DefaultPageSize = 10
+	MaxPageSize     = 100
+)
+
+// NormalizePageSize 把非法或越界的 pageSize 归一到默认值。
+func NormalizePageSize(n int) int {
+	if n < 1 || n > MaxPageSize {
+		return DefaultPageSize
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 10
+	return n
+}
+
+// NormalizePage 把非法页码归一到第 1 页。
+func NormalizePage(n int) int {
+	if n < 1 {
+		return 1
 	}
-	return page, pageSize
+	return n
 }

@@ -52,8 +52,10 @@ dist/
 build/
 
 # Frontend auto-generated
+# 注意：路径必须是实际位置。早前写成 web/components.d.ts（缺 src/），
+# 规则实际不生效 —— 每次 npm run build 都会重写该文件、把工作区弄脏。
 web/src/auto-imports.d.ts
-web/components.d.ts
+web/src/components.d.ts
 
 # Runtime
 tmp/
@@ -62,6 +64,7 @@ temp/
 *.bak
 
 # AI 工具工作目录（本地记忆与缓存，不属于项目代码）
+.workbuddy/
 .workbuddy-ai/
 .mimocode/
 

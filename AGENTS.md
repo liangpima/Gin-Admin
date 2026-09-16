@@ -205,11 +205,31 @@ type BaseModel struct {
 **必须按租户过滤的表**（表含 `tenant_id` 列；多数继承 `TenantBaseModel`，
 `pay_order` 为手动声明 `TenantID` 字段）：
 
-`sys_user`、`sys_role`、`sys_file`、`sys_operation_log`、`sys_login_log`、`pay_order`、`pay_member`、`pay_member_level`、`pay_member_tag`、`pay_points_log`
+`sys_user`、`sys_role`、`sys_post`、`sys_file`、`sys_operation_log`、`sys_login_log`、`pay_order`、`pay_member`、`pay_member_level`、`pay_member_tag`、`pay_points_log`
 
 **全局表**（继承 `BaseModel`，**不要**加租户过滤，否则会因无 `tenant_id` 列而 SQL 报错）：
 
-`sys_menu`、`sys_dept`、`sys_post`、`sys_config`、`sys_dict_type`、`sys_dict_data`、`sys_agreement`、`sys_tenant`
+`sys_menu`、`sys_dept`、`sys_config`、`sys_dict_type`、`sys_dict_data`、`sys_agreement`、`sys_tenant`
+
+**纯关联表**（**没有** `tenant_id` 列，同样不能套 `TenantScope`）：
+
+`sys_user_role`、`sys_user_post`、`sys_role_menu`、`pay_member_tag_rel`
+
+关联表的租户隔离必须在 Service 层自己校验：写入前用租户维度查出被引用方
+（角色/岗位/会员），比对数量是否一致，不一致即拒绝。
+只查关联表本身无法判断归属 —— 它的 user_id 与 role_id 可能分属不同租户。
+
+```go
+// ✅ Service 层校验归属后再写关联
+roleIDs, err := s.normalizeRoleIDs(tenantID, req.RoleIds)   // 按租户过滤 + 比对数量
+if err != nil {
+    return err
+}
+return s.userRepo.ReplaceRoles(user.ID, roleIDs)
+
+// ❌ 直接把前端传来的 ID 写进关联表 → 跨租户权限提升
+return s.userRepo.ReplaceRoles(user.ID, req.RoleIds)
+```
 
 ⚠️ **`TenantScope(db, 0)` 表示「不过滤」**（用于 `tenant_id=0` 的平台级账号，如默认 admin）。
 因此**漏传 tenantID 会静默退化为全表查询**，造成跨租户数据泄漏 —— 这是该类问题最典型的成因，
@@ -599,7 +619,7 @@ export REDIS_PASSWORD="your_redis_password"
 |----|--------|------|---------------------|
 | `sys_user` | `username` | 64 | `sys_user_role`、`sys_user_post` |
 | `sys_role` | `code` | 64 | `sys_user_role`、`sys_role_menu` |
-| `sys_post` | `code` | 64 | `sys_user_post` |
+| `sys_post` | `(tenant_id, code)` | 64 | `sys_user_post` |
 | `sys_menu` | — | — | `sys_role_menu` |
 | `sys_config` | `config_key` | 191 | — |
 | `sys_dict_type` | `type` | 128 | — |

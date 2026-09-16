@@ -34,6 +34,12 @@ import (
 // @name Authorization
 // @description 输入格式: Bearer {token}
 
+// logCleanTimeout 日志清理任务单次运行的时间上限。
+//
+// 日志表随运行时间增长，DELETE 会越来越慢；而这是凌晨 3 点无人值守执行的任务，
+// 长时间阻塞不会有人察觉，只会表现为连接池被占满、其他请求排队。
+const logCleanTimeout = 10 * time.Minute
+
 func main() {
 	configPath := "config/config.yaml"
 	if len(os.Args) > 1 {
@@ -65,7 +71,7 @@ func main() {
 	}
 
 	if err := database.Init(); err != nil {
-		logger.Log.Fatalf("初始化数据库失败: %v", err)
+		fatal("初始化数据库失败: %v", err)
 	}
 
 	// Redis 是**必需**依赖，不可降级：它承载 refresh token 存储、token 黑名单、
@@ -74,14 +80,24 @@ func main() {
 	// cache.RDB 为 nil 会让后续每次调用空指针 panic，被 Recovery 兜成 500，
 	// 相当于全站不可用且错误信息毫无指向性。失败即退出。
 	if err := cache.Init(); err != nil {
-		logger.Log.Fatalf("初始化Redis失败: %v", err)
+		fatal("初始化Redis失败: %v", err)
 	}
 
 	// 初始化 Casbin 权限模型并同步策略。
 	// 鉴权属于安全控制，初始化失败时拒绝启动，避免在"无鉴权"状态下对外提供服务。
 	if err := middleware.InitCasbin(config.Cfg.Casbin.ModelPath); err != nil {
-		logger.Log.Fatalf("初始化Casbin失败: %v", err)
+		fatal("初始化Casbin失败: %v", err)
 	}
+
+	// 注入鉴权所需的角色解析实现（见 middleware.RoleResolver）。
+	// 必须在对提供服务之前完成：未注入时中间件会按「无角色」拒绝所有请求，
+	// 这是有意的 fail-closed 设计，但会让整个后台不可用。
+	middleware.SetRoleResolver(service.NewRBACRoleResolver())
+
+	// 注入审计日志写入实现（见 middleware.OperationLogWriter）。
+	// 未注入时中间件只记录错误日志、不阻塞请求，因此漏注入不会影响可用性，
+	// 但审计会静默失效 —— 这也是这里紧挨着鉴权一起显式注入的原因。
+	middleware.SetOperationLogWriter(service.NewOperationLogWriter())
 
 	// 扩展名白名单来自配置（未配置则沿用内置默认值）
 	upload.SetAllowedExts(config.Cfg.Upload.AllowExts)
@@ -102,7 +118,13 @@ func main() {
 	if retentionDays <= 0 {
 		logger.Log.Infof("日志保留天数配置为 %d，已跳过日志清理任务", retentionDays)
 	} else if _, err := task.AddJob("0 3 * * *", func() {
-		deleted, err := logService.CleanExpiredLogs(retentionDays)
+		// 给清理任务设运行上限：日志表可能很大，DELETE 一旦长时间阻塞，
+		// 会一直占着数据库连接与行锁；而这是凌晨无人值守执行的任务，
+		// 卡住不会有人发现。传 ctx 后 database/sql 能在超时后真正中断查询。
+		ctx, cancel := context.WithTimeout(context.Background(), logCleanTimeout)
+		defer cancel()
+
+		deleted, err := logService.CleanExpiredLogs(ctx, retentionDays)
 		if err != nil {
 			logger.Log.Errorf("清理超期日志失败: %v", err)
 			return
@@ -124,13 +146,17 @@ func main() {
 		ReadTimeout:  time.Duration(config.Cfg.Server.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(config.Cfg.Server.WriteTimeout) * time.Second,
 		IdleTimeout:  60 * time.Second,
+		// ReadHeaderTimeout 防御 Slowloris：只发请求头、不结束，
+		// 让 ReadTimeout 被反复刷新，从而长时间占用连接。
+		// 默认值在 config.Validate 中补齐，这里只做单位换算。
+		ReadHeaderTimeout: time.Duration(config.Cfg.Server.ReadHeaderTimeout) * time.Second,
 	}
 
 	// 在独立协程中启动 HTTP 服务，主协程负责监听退出信号
 	go func() {
 		logger.Log.Infof("服务启动在 %s", addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Log.Fatalf("服务启动失败: %v", err)
+			fatal("服务启动失败: %v", err)
 		}
 	}()
 
@@ -157,4 +183,19 @@ func main() {
 	}
 
 	logger.Log.Info("服务已退出")
+}
+
+// fatal 记录致命错误、刷盘后退出。
+//
+// 不直接用 logger.Log.Fatalf：它内部调用 os.Exit(1)，会**跳过所有 defer**，
+// 包括 main 开头那句 defer logger.Log.Sync()。于是「启动失败」这类最需要
+// 事后排查的场景，恰恰可能丢掉刚写入的日志。
+//
+// 当前的 core（stdout + lumberjack）本身是同步写，实际影响有限；
+// 但这里显式刷盘，是为了避免将来换成缓冲式 core 后静默丢日志 —— 那种问题
+// 只在最需要日志的时候才暴露。
+func fatal(format string, args ...interface{}) {
+	logger.Log.Errorf(format, args...)
+	_ = logger.Log.Sync()
+	os.Exit(1)
 }

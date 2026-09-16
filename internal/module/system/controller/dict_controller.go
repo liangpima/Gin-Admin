@@ -51,8 +51,8 @@ func (ctl *DictController) FindTypeList(c *gin.Context) {
 		PageSize int    `form:"pageSize"`
 	}
 	c.ShouldBindQuery(&req)
-	if req.Page < 1 { req.Page = 1 }
-	if req.PageSize < 1 { req.PageSize = 10 }
+	req.Page = common.NormalizePage(req.Page)
+	req.PageSize = common.NormalizePageSize(req.PageSize)
 	list, total, err := ctl.dictService.FindTypeList(req.Name, req.Page, req.PageSize)
 	if err != nil {
 		common.FailWith(c, err)

@@ -93,9 +93,18 @@ func RevokeToken(ctx context.Context, token string, expiration time.Duration) er
 	return RDB.Set(ctx, "token:blacklist:"+token, "1", expiration).Err()
 }
 
-func IsTokenRevoked(ctx context.Context, token string) bool {
-	n, _ := RDB.Exists(ctx, "token:blacklist:"+token).Result()
-	return n > 0
+// IsTokenRevoked 判断 access token 是否已被吊销。
+//
+// 为什么返回 error 而不是吞掉它：签名只给 bool 时，Redis 异常只能返回 false
+// ——「查不到黑名单记录」与「查不了黑名单」被混为一谈，等于 fail-open。
+// 运行期 Redis 抖动的那段时间里，所有已登出的 access token 会重新变成有效。
+// 安全判定必须能区分这两种情况，由调用方决定拒绝策略（见 middleware.Auth）。
+func IsTokenRevoked(ctx context.Context, token string) (bool, error) {
+	n, err := RDB.Exists(ctx, "token:blacklist:"+token).Result()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 // DelByPrefix 按前缀批量删除键。

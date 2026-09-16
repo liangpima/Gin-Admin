@@ -24,7 +24,7 @@ export function uploadFile(file: File) {
 }
 
 export function getFileList(params: { name?: string; mimeType?: string; sortOrder?: string; page: number; pageSize: number }) {
-  return request.get<any, PageResult<FileItem>>('/system/file/list', { params })
+  return request.get<any, Result<PageResult<FileItem>>>('/system/file/list', { params })
 }
 
 export function deleteFile(id: number) {

@@ -81,8 +81,6 @@ func Forbidden(c *gin.Context, message string) {
 //
 // 之所以对系统错误隐藏细节：原始 error 常带 SQL、表名字段、内部路径等信息，
 // 直接回给调用方等于泄漏实现细节；而排查所需的信息日志里已经有了。
-//
-// 注意：logger.Log 在单元测试中可能为 nil（未调用 logger.Init），故加空值保护。
 func FailWith(c *gin.Context, err error) {
 	if err == nil {
 		return
@@ -93,9 +91,8 @@ func FailWith(c *gin.Context, err error) {
 		return
 	}
 
-	if logger.Log != nil {
-		logger.Log.Errorf("[internal] %s %s -> %v",
-			c.Request.Method, c.Request.URL.Path, err)
-	}
+	// logger.Log 初值为 no-op，永远不为 nil，无需空值保护
+	logger.Log.Errorf("[internal] %s %s -> %v",
+		c.Request.Method, c.Request.URL.Path, err)
 	Error(c, CodeInternalError, "服务器内部错误")
 }
